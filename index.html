@@ -1,0 +1,3481 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Universe Blocks</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050510;
+            --board-bg: rgba(20, 20, 40, 0.7);
+            --grid-line: rgba(0, 255, 255, 0.15);
+            
+            /* Colores de nave y asteroides por defecto */
+            --ship-color: #ffd700;
+            --ship-border: #d4af37;
+            --ship-glow: rgba(255, 215, 0, 0.8);
+            --asteroid-color: #5d6d7e;
+            --asteroid-border: #7f8c8d;
+            
+            --accent: #00ffff;
+            --cols: 6;
+            --rows: 6;
+            --exit-row: 2;
+        }
+        
+        body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; touch-action: none; display: flex; justify-content: center; align-items: center; height: 100vh; user-select: none; }
+        #app { width: 100%; max-width: 500px; height: 100%; position: relative; }
+        
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(circle at center, rgba(5,5,16,0.1) 0%, rgba(5,5,16,0.7) 100%); transition: opacity 0.3s ease, transform 0.4s ease; }
+        .active { display: flex; }
+        
+        .title-font { font-family: 'Orbitron', sans-serif; font-size: 42px; text-align: center; color: transparent; -webkit-text-stroke: 1px var(--accent); background: linear-gradient(to right, #00ffff, #ff00ff); -webkit-background-clip: text; text-shadow: 0 0 20px rgba(0,255,255,0.5); margin-bottom: 20px; line-height: 1.1; }
+        
+        button { position: relative; background: rgba(0,0,0,0.4); border: 2px solid var(--accent); color: var(--accent); padding: 15px 30px; font-size: 20px; border-radius: 8px; margin: 10px; cursor: pointer; transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); text-transform: uppercase; font-weight: bold; width: 80%; max-width: 300px; box-shadow: 0 0 10px rgba(0,255,255,0.2); font-family: 'Orbitron', sans-serif; backdrop-filter: blur(2px); -webkit-tap-highlight-color: transparent; outline: none; }
+        button:focus { outline: none; }
+        
+        /* Clic instantáneo azul y hundimiento para cualquier botón */
+        button:active { 
+            background: var(--accent) !important; 
+            color: var(--bg) !important; 
+            transform: translateY(2px) !important; 
+            box-shadow: inset 0 8px 15px rgba(0,0,0,0.8) !important; 
+            transition: none !important; 
+        }
+        
+        button:disabled { border-color: #555; color: #555; box-shadow: none; background: rgba(0,0,0,0.6); }
+        button:disabled:active { background: rgba(0,0,0,0.6) !important; color: #555 !important; transform: none !important; box-shadow: none !important; }
+        
+        .floating-logo-block { 
+            width: 75px; 
+            height: 75px; 
+            background: transparent; 
+            border-radius: 8px; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            position: absolute; 
+            bottom: -45px;
+            right: -45px; 
+            transform: rotate(-35deg); 
+            z-index: 10;
+        }
+        
+        .css-golden-token {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #FFDF00 0%, #D4AF37 50%, #B8860B 100%);
+            border: 2px solid #FFFACD;
+            border-radius: 6px;
+            box-shadow: inset 0 0 12px rgba(255, 255, 255, 0.7), 0 0 10px rgba(255, 215, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .css-golden-token::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+            transform: rotate(45deg);
+            animation: shineToken 3s infinite;
+        }
+        .css-golden-token-icon {
+            font-size: 32px;
+            z-index: 2;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+        }
+        @keyframes shineToken {
+            0% { transform: translateX(-100%) rotate(45deg); }
+            20%, 100% { transform: translateX(100%) rotate(45deg); }
+        }
+
+        @keyframes floatBlock { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-10px) rotate(3deg); } }
+        
+        .top-hud { position: absolute; top: 15px; left: 0; width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; box-sizing: border-box; font-family: 'Orbitron', sans-serif; z-index: 50; pointer-events: none;}
+        
+        /* Nuevo visualizador de perfil en el HUD */
+        .avatar-profile {
+            width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--accent);
+            background: #222; overflow: hidden; display: flex; justify-content: center; align-items: flex-end;
+            box-shadow: 0 0 10px rgba(0,255,255,0.5); pointer-events: auto;
+        }
+        .avatar-profile img { width: 100%; height: 100%; object-fit: cover; }
+        .default-avatar-svg { width: 85%; height: 85%; fill: #888; margin-bottom: -2px; }
+
+        .coin-display { color: #f0e68c; text-shadow: 0 0 10px #f0e68c; font-size: 18px; display: flex; align-items: center; gap: 5px; }
+
+        #splash-screen { background: rgba(0,0,0,0.8); font-family: 'Orbitron', sans-serif; font-size: 24px; text-transform: uppercase; letter-spacing: 3px; z-index: 100; text-align: center; backdrop-filter: blur(5px); }
+        .creator-text { color: var(--accent); text-shadow: 0 0 15px var(--accent); animation: pulseText 2s infinite; }
+        #loading-screen { z-index: 99; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px);}
+        .loading-bar-container { width: 60%; height: 10px; border: 2px solid var(--accent); border-radius: 5px; margin-top: 20px; overflow: hidden; }
+        #load-bar { width: 0%; height: 100%; background: var(--accent); box-shadow: 0 0 10px var(--accent); transition: width 0.2s; }
+        @keyframes pulseText { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+        .carousel-container { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; width: 100%; max-width: 400px; padding-top: 40px; padding-bottom: 40px; margin-top: -20px; scrollbar-width: none; }
+        .carousel-container::-webkit-scrollbar { display: none; }
+        .universe-card { position: relative; min-width: 100%; scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: scale(0.9); transition: transform 0.3s; }
+        .universe-card.unlocked { cursor: pointer; }
+        .universe-card.unlocked:active { transform: scale(0.85); }
+        .universe-icon { width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(0,255,255,0.5), rgba(0,0,51,0.5)); box-shadow: 0 0 30px var(--accent); display: flex; justify-content: center; align-items: center; font-size: 50px; margin-bottom: 20px; position: relative;}
+        .universe-card.locked .universe-icon { background: radial-gradient(circle, rgba(51,51,51,0.5), rgba(17,17,17,0.5)); box-shadow: none; color: #555; }
+        .universe-name { font-family: 'Orbitron', sans-serif; font-size: 22px; color: white; text-shadow: 0 0 10px #fff; }
+        .swipe-hint { font-size: 12px; color: #aaa; margin-top: 10px; animation: pulse 1.5s infinite; }
+
+        .level-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; width: 90%; max-width: 400px; margin-bottom: 20px; max-height: 60vh; overflow-y: auto; touch-action: pan-y; padding-right: 5px; }
+        .level-grid::-webkit-scrollbar { width: 6px; }
+        .level-grid::-webkit-scrollbar-track { background: rgba(0, 255, 255, 0.1); border-radius: 4px; }
+        .level-grid::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+        .grid-btn { padding: 20px 0; font-size: 15px; margin: 0; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center;}
+        
+        #game-container { display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 30px; }
+        #header { display: flex; justify-content: space-between; width: 90%; margin-bottom: 15px; font-size: 16px; font-weight: bold; color: var(--accent); font-family: 'Orbitron', sans-serif; text-shadow: 0 0 5px #000;}
+        
+        #board-wrapper { position: relative; width: 90vw; max-width: 380px; aspect-ratio: var(--cols) / var(--rows); background: var(--board-bg); border: 4px solid var(--accent); box-shadow: 0 0 20px rgba(0,255,255,0.3), inset 0 0 20px rgba(0,255,255,0.2); border-radius: 8px; box-sizing: content-box; transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.3s, box-shadow 0.3s; backdrop-filter: blur(4px); }
+        
+        .destruction-mode { border-color: #ff4444 !important; box-shadow: 0 0 30px rgba(255, 68, 68, 0.6), inset 0 0 20px rgba(255, 68, 68, 0.4) !important; }
+        .destruction-mode .asteroid .block-inner { border-color: #ff4444; background: rgba(255, 68, 68, 0.2); animation: pulseDanger 1s alternate infinite; }
+        @keyframes pulseDanger { from { box-shadow: inset 0 0 5px #ff4444; } to { box-shadow: inset 0 0 20px #ff4444; } }
+
+        .grid-lines { position: absolute; width: 100%; height: 100%; display: grid; grid-template-columns: repeat(var(--cols), 1fr); grid-template-rows: repeat(var(--rows), 1fr); pointer-events: none; }
+        .grid-cell { border: 1px solid var(--grid-line); }
+        #blocks-container { position: absolute; width: 100%; height: 100%; border-radius: 4px; }
+        
+        .block { position: absolute; border-radius: 8px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-sizing: border-box; transition: transform 0.15s cubic-bezier(0.25, 0.8, 0.25, 1); touch-action: none; }
+        .block.dragging { z-index: 10; transition: none; }
+        .block-inner { width: 96%; height: 96%; border-radius: 6px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; transition: background 0.3s, border 0.3s; overflow: hidden; }
+        
+        .ship { background: transparent; z-index: 5; padding: 0; } 
+        .ship .block-inner { background: transparent; border: none; box-shadow: none; width: 100% !important; height: 100% !important; border-radius: 6px; }
+        
+        .asteroid { background: var(--asteroid-color); box-shadow: 0 0 8px rgba(0,0,0,0.8); }
+        .asteroid .block-inner { background: var(--asteroid-border); border: 1px solid rgba(255,255,255,0.2); }
+        
+        .exit-hole { position: absolute; right: -24px; top: calc(100% / var(--rows) * var(--exit-row)); height: calc(100% / var(--rows)); width: 24px; background: rgba(0, 255, 255, 0.15); border: 4px solid var(--accent); border-left: none; box-shadow: inset 0 0 15px rgba(0,255,255,0.4), 10px 0 20px var(--accent); border-radius: 0 8px 8px 0; display: flex; align-items: center; justify-content: center; box-sizing: border-box; z-index: 10; backdrop-filter: blur(2px);}
+        .exit-hole::before { content: ''; position: absolute; left: -4px; top: -4px; height: calc(100% + 8px); width: 4px; background: var(--board-bg); z-index: 20; }
+        .exit-hole::after { content: '»'; color: var(--accent); font-weight: bold; animation: pulse 1s infinite alternate; z-index: 21; position: relative;}
+        
+        #controls { display: flex; justify-content: space-around; width: 90%; margin-top: 15px; gap: 5px; }
+        .icon-btn { width: 50px; height: 50px; border-radius: 25px; padding: 0; display: flex; justify-content: center; align-items: center; font-size: 20px; background: rgba(0,255,255,0.1); margin:0;}
+        .hint-btn { flex-grow: 1; margin: 0; display: flex; justify-content: center; align-items: center; gap: 5px; font-size: 14px; padding: 10px;}
+        
+        .shop-section { width: 90%; max-width: 400px; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; touch-action: pan-y; padding-right: 5px;}
+        .shop-section::-webkit-scrollbar { width: 6px; }
+        .shop-section::-webkit-scrollbar-track { background: rgba(0, 255, 255, 0.1); border-radius: 4px; }
+        .shop-section::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+        
+        .shop-item { background: rgba(0,255,255,0.1); border: 1px solid var(--accent); border-radius: 8px; padding: 10px; display: flex; justify-content: space-between; align-items: center; backdrop-filter: blur(5px);}
+        .shop-item-info { display: flex; flex-direction: column; align-items: flex-start;}
+        .shop-item-title { font-weight: bold; color: white; font-family: 'Orbitron'; font-size: 15px;}
+        .shop-item-desc { font-size: 11px; color: #ccc; }
+        .shop-btn { width: auto; padding: 8px 15px; font-size: 14px; margin: 0; }
+        
+        .shop-item-new {
+            background: rgba(0,255,255,0.1); border: 1px solid var(--accent); border-radius: 10px; padding: 12px; margin-bottom: 12px;
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; backdrop-filter: blur(5px);
+        }
+        .shop-item-left { display: flex; align-items: center; cursor: pointer; flex: 1; min-width: 0; }
+        .shop-img-box {
+            width: 55px; height: 55px; min-width: 55px; background: rgba(0,0,0,0.6); border-radius: 8px;
+            display: flex; justify-content: center; align-items: center; border: 1px solid var(--accent); overflow: hidden; flex-shrink: 0;
+        }
+        .shop-item-title-new {
+            margin-left: 10px; font-size: 12px; text-transform: uppercase; line-height: 1.2; flex: 1;
+            word-wrap: break-word; color: white; font-family: 'Orbitron'; font-weight: bold;
+        }
+        .shop-item-right { width: 105px; min-width: 105px; flex-shrink: 0; display: flex; justify-content: flex-end; }
+        .shop-btn-new {
+            width: 100%; padding: 8px 0; font-size: 13px; margin: 0; background: rgba(0,0,0,0.4); border: 2px solid var(--accent);
+            color: var(--accent); border-radius: 8px; cursor: pointer; text-transform: uppercase; font-weight: bold; font-family: 'Orbitron';
+            white-space: nowrap; 
+        }
+
+        .zoom-in { animation: animZoomIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .zoom-out { animation: animZoomOut 0.4s forwards; }
+        @keyframes animZoomIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes animZoomOut { from { transform: scale(1.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes pulse { from { opacity: 0.3; transform: translateX(-3px); } to { opacity: 1; transform: translateX(3px); } }
+
+        .hint-highlight { outline: 4px solid #ff00ff; outline-offset: 2px; animation: hintPulse 1s infinite; z-index: 20;}
+        @keyframes hintPulse { 0% { outline-color: #ff00ff; } 50% { outline-color: transparent; } 100% { outline-color: #ff00ff; } }
+
+        #stars { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+
+        #custom-modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 200; display: none;
+            justify-content: center; align-items: center; opacity: 0;
+            transition: opacity 0.3s ease; backdrop-filter: blur(3px);
+        }
+        #custom-modal.show { opacity: 1; }
+        .modal-content {
+            background: rgba(10, 10, 30, 0.9); border: 2px solid var(--accent);
+            border-radius: 15px; padding: 30px 20px; text-align: center;
+            transform: scale(0.5); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 0 40px rgba(0,255,255,0.3); width: 85%; max-width: 350px;
+        }
+        #custom-modal.show .modal-content { transform: scale(1); }
+        .modal-title { font-family: 'Orbitron'; font-size: 24px; margin-bottom: 15px; text-transform: uppercase; text-shadow: 0 0 10px var(--accent); }
+        .modal-stats { font-size: 16px; margin-bottom: 25px; line-height: 1.6; }
+        .modal-stats b { color: #f0e68c; font-size: 18px; }
+        .modal-btn-group { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .modal-btn-group button { width: 100%; margin: 0; font-size: 16px; padding: 12px; }
+
+        #shop-alert-modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 300; display: none;
+            justify-content: center; align-items: center; opacity: 0;
+            transition: opacity 0.3s ease; backdrop-filter: blur(3px);
+        }
+        #shop-alert-modal.show { opacity: 1; }
+        
+        /* Ventana emergente sin lunas reescalada y ampliada */
+        #shop-alert-modal .modal-content {
+            border-color: #ff4444; box-shadow: 0 0 40px rgba(255,68,68,0.3);
+            max-width: 440px; width: 90%; padding: 45px 25px;
+        }
+        #shop-alert-modal .modal-title { font-size: 32px; margin-bottom: 20px; }
+        #shop-alert-modal .modal-stats { font-size: 20px; line-height: 1.5; margin-bottom: 35px; }
+        #shop-alert-modal button { font-size: 18px; padding: 14px; }
+        
+        /* MEJORAS AL TUTORIAL INTERACTIVO */
+        #tutorial-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5,5,15,0.4); /* Menos opacidad para que se vea el juego */
+            z-index: 1000; pointer-events: auto;
+        }
+        
+        #astronaut-container {
+            position: absolute; left: 50%; transform: translateX(-50%);
+            width: 95%; display: flex; flex-direction: row; /* Dispuesto de lado a lado */
+            align-items: center; justify-content: center;
+            pointer-events: none; z-index: 1001; gap: 10px;
+        }
+        
+        #astronaut-img {
+            width: 90px; height: auto;
+            animation: floatBlock 3s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+        
+        #speech-bubble {
+            background: rgba(10, 10, 30, 0.95); border: 2px solid var(--accent);
+            color: white; padding: 16px; border-radius: 15px;
+            width: auto; flex: 1; max-width: 250px;
+            font-family: 'Segoe UI', sans-serif; font-size: 18px; /* Letras más grandes */
+            font-weight: bold; /* Para máxima legibilidad */
+            box-shadow: 0 0 25px rgba(0,255,255,0.5); line-height: 1.4;
+            text-align: center; pointer-events: none;
+        }
+        
+        #tutorial-hand {
+            position: absolute; font-size: 42px; z-index: 1005; pointer-events: none;
+            animation: handMove 0.4s infinite alternate ease-in-out;
+            filter: drop-shadow(0 0 8px var(--accent)); display: none;
+        }
+        @keyframes handMove {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(8px); }
+        }
+        
+        /* Clase de parpadeo intenso para el botón del tutorial corregida */
+        .tut-highlight {
+            z-index: 1002 !important;
+            border-color: #00ffff !important;
+            animation: pulseGlowBlink 0.6s infinite alternate !important;
+            pointer-events: auto !important;
+        }
+        @keyframes pulseGlowBlink {
+            0% { box-shadow: 0 0 15px #00ffff; background-color: rgba(0,255,255,0.1); transform: scale(1); }
+            100% { box-shadow: 0 0 35px #00ffff, 0 0 15px #ff00ff; background-color: rgba(0,255,255,0.4); transform: scale(1.05); }
+        }
+    </style>
+</head>
+<body ontouchstart="">
+    <canvas id="stars"></canvas>
+    
+    <div class="top-hud">
+        <!-- Visualizador del Avatar Equipado y Nombre agrupados -->
+        <div id="hud-avatar-container" style="display:none; flex-direction:column; align-items:center; gap: 4px; pointer-events: auto; cursor: pointer; margin-top: 5px;" onclick="openLargeAvatar()">
+            <div class="avatar-profile" id="hud-avatar" style="pointer-events: none;"></div>
+            <div id="hud-player-name" style="font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: bold; text-transform: uppercase; color: white; text-shadow: 0 0 5px var(--accent); text-align: center; line-height: 1;"></div>
+        </div>
+        <div class="coin-display" style="display:none;" id="hud-coins">🌙 <span id="coin-count">0</span></div>
+    </div>
+
+    <!-- Notificación animada superior izquierda para Misiones completadas en partida -->
+    <div id="mission-toast" style="position: absolute; top: 70px; left: 15px; background: rgba(10, 10, 30, 0.95); border: 2px solid #00ff00; border-radius: 8px; padding: 10px 15px; box-shadow: 0 0 20px rgba(0,255,0,0.4); display: none; z-index: 1000; font-family: 'Orbitron'; min-width: 200px; transform: translateX(-150%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+        <div style="color: #00ff00; font-size: 11px; font-weight: bold; text-transform: uppercase;">¡Misión Completada!</div>
+        <div id="mission-toast-text" style="color: white; font-size: 13px; margin-top: 2px;"></div>
+    </div>
+
+    <div id="app">
+        <!-- Icono Bloc de notas y boli en la esquina superior derecha exclusivo del inicio -->
+        <button id="btn-tut-misiones" class="icon-btn" onclick="nav('missions'); checkTutAdvance('btn-tut-misiones');" style="position: absolute; top: 15px; right: 20px; font-size: 24px; background: rgba(0,255,255,0.1); border: 2px solid var(--accent); width: 50px; height: 50px; border-radius: 50%; margin: 0; display: none; justify-content: center; align-items: center; pointer-events: auto; z-index: 55;">📝</button>
+
+        <div id="splash-screen" class="screen active">
+            <div class="creator-text">Creado por<br>Plácido Alcaraz</div>
+        </div>
+
+        <div id="loading-screen" class="screen">
+            <h2 style="font-family: 'Orbitron'; color: var(--accent);">Inicializando Motores...</h2>
+            <div class="loading-bar-container"><div id="load-bar"></div></div>
+        </div>
+
+        <div id="menu-screen" class="screen">
+            <div style="position: relative; display: inline-block; margin-bottom: 30px; text-align: center;">
+                <h1 class="title-font" style="margin-bottom: 0;">UNIVERSE<br>BLOCKS</h1>
+                <div class="floating-logo-block" id="menu-logo"></div>
+            </div>
+            
+            <button id="btn-tut-jugar" onclick="nav('universe'); checkTutAdvance('btn-tut-jugar');">Jugar</button>
+            <button id="btn-tut-tienda" onclick="buildShop(); nav('shop'); checkTutAdvance('btn-tut-tienda');">Tienda</button>
+            <button id="btn-tut-opciones" onclick="nav('options'); checkTutAdvance('btn-tut-opciones');">Opciones</button>
+        </div>
+
+        <div id="options-screen" class="screen">
+            <h1 class="title-font" style="font-size: 30px;">Opciones</h1>
+            <button id="sound-toggle" onclick="toggleSound()">Sonido: Activado</button>
+            <button onclick="resetProgress()" style="border-color: #ff4444; color: #ff4444;">Borrar Progreso</button>
+            <button id="btn-options-volver" onclick="nav('menu'); checkTutAdvance('btn-options-volver');">Volver</button>
+        </div>
+
+        <!-- Nueva Pantalla de Misiones Diarias -->
+        <div id="missions-screen" class="screen">
+            <h1 class="title-font" style="font-size: 30px;">Misiones Diarias</h1>
+            <div id="missions-countdown" style="font-family: 'Orbitron'; color: var(--accent); margin-bottom: 15px; font-size: 14px;">Reiniciar en: 00:00:00</div>
+            <div id="missions-list" class="shop-section"></div>
+            <button id="btn-missions-volver" onclick="nav('menu'); checkTutAdvance('btn-missions-volver');" style="width: 50%;">Volver</button>
+        </div>
+
+        <div id="universe-screen" class="screen">
+            <h1 class="title-font" style="font-size: 26px;">Selecciona Universo</h1>
+            <div class="carousel-container" id="universe-carousel"></div>
+            <div class="swipe-hint">← Desliza para explorar →</div>
+            <button onclick="nav('menu')" style="margin-top: 20px; width: 50%;">Volver</button>
+        </div>
+
+        <div id="galaxy-screen" class="screen">
+            <h1 class="title-font" style="font-size: 26px;" id="gal-title">Galaxias</h1>
+            <div class="level-grid" id="galaxy-grid"></div>
+            <button onclick="nav('universe')" style="width: 50%;">Volver</button>
+        </div>
+
+        <div id="world-screen" class="screen">
+            <h1 class="title-font" style="font-size: 26px;" id="world-title">Mundos</h1>
+            <div class="level-grid" id="world-grid"></div>
+            <button onclick="nav('galaxy')" style="width: 50%;">Volver</button>
+        </div>
+
+        <div id="shop-screen" class="screen">
+            <h1 class="title-font" style="font-size: 30px;">Tienda Estelar</h1>
+            <div class="shop-section" id="shop-list"></div>
+            <button id="btn-shop-volver" onclick="nav('menu'); checkTutAdvance('btn-shop-volver');" style="width: 50%;">Volver</button>
+        </div>
+
+        <div id="game-screen" class="screen">
+            <div id="game-container">
+                <div id="header">
+                    <span id="level-display">M1</span>
+                    <span id="moves-display">Mov: 0</span>
+                </div>
+                <div id="board-wrapper">
+                    <div class="grid-lines" id="grid"></div>
+                    <div class="exit-hole"></div>
+                    <div id="blocks-container"></div>
+                </div>
+                <div id="controls">
+                    <button class="icon-btn" onclick="nav('world')">🔙</button>
+                    <button class="icon-btn" id="restart-btn" onclick="restartLevel()">🔄</button>
+                    <button class="hint-btn" onclick="useHint()">💡 <span id="hint-count">0</span></button>
+                    <button class="hint-btn" id="btn-destructor" onclick="toggleDestructor()" style="border-color: #ff4444; color: #ff4444;">💣 <span id="destructor-count">0</span></button>
+                </div>
+            </div>
+        </div>
+
+        <div id="custom-modal">
+            <div class="modal-content">
+                <div class="modal-title" id="modal-title">¡Completado!</div>
+                <div class="modal-stats" id="modal-stats"></div>
+                <div class="modal-btn-group">
+                    <button id="modal-next-btn" onclick="nextLevelFromModal()">Siguiente Nivel</button>
+                    <button style="background: transparent; border-color: #777; color: #aaa;" onclick="navFromModal('world')">Volver a Mundos</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="shop-alert-modal">
+            <div class="modal-content">
+                <div class="modal-title" style="color: #ff4444; text-shadow: 0 0 10px #ff4444;">Sin Lunas</div>
+                <div class="modal-stats" style="color: white;">No tienes suficientes Lunas Estelares para realizar esta compra.</div>
+                <div class="modal-btn-group">
+                    <button onclick="closeShopAlertAndPlay()" style="background: rgba(0,255,255,0.1); border-color: var(--accent); color: var(--accent);">JUGAR Y CONSEGUIR</button>
+                    <button onclick="closeShopAlert()" style="background: transparent; border-color: #777; color: #aaa;">VOLVER A LA TIENDA</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ventana emergente personalizada para confirmar el borrado de progreso -->
+        <div id="confirm-reset-modal" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 400; display: none; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.3s ease; backdrop-filter: blur(3px);">
+            <div class="modal-content" style="border-color: #ff4444; box-shadow: 0 0 40px rgba(255,68,68,0.3);">
+                <div class="modal-title" style="color: #ff4444;">¿Borrar progreso?</div>
+                <div class="modal-stats" style="color: white; font-size: 16px;">¿Estás seguro de que quieres borrar tu progreso galáctico? Esta acción no se puede deshacer.</div>
+                <div class="modal-btn-group">
+                    <button onclick="executeResetProgress()" style="background: #ff4444; border-color: #ff4444; color: white;">SÍ, BORRAR</button>
+                    <button onclick="closeResetModal()" style="background: transparent; border-color: #777; color: #aaa;">NO, CANCELAR</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="image-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(5px);" onclick="closeImageModal(event)">
+            <div id="image-modal-content" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center;">
+            </div>
+        </div>
+        
+        <div id="tutorial-overlay" style="display: none;" onclick="handleOverlayClick(event)">
+            <div id="astronaut-container">
+                <div id="speech-bubble"></div>
+                <img src="astronauta.png" id="astronaut-img" alt="Astronauta Guía">
+            </div>
+        </div>
+        <div id="tutorial-hand">👆</div>
+    </div>
+
+    <script>
+        const COLS = 6;
+        const ROWS = 6;
+        const EXIT_ROW = 2; 
+        
+        document.documentElement.style.setProperty('--cols', COLS);
+        document.documentElement.style.setProperty('--rows', ROWS);
+        document.documentElement.style.setProperty('--exit-row', EXIT_ROW);
+
+        const UNIVERSES = [
+            { name: "Nebula Prime", icon: "🌌" }, { name: "Aetherius", icon: "🪐" }, 
+            { name: "Quantum Void", icon: "🌀" }, { name: "Chronos Drift", icon: "⏳" },
+            { name: "Obsidian Reach", icon: "🌑" }, { name: "Starlight Nexus", icon: "✨" },
+            { name: "Celestial Forge", icon: "🔥" }, { name: "Nova Prime", icon: "💥" },
+            { name: "Zenith Core", icon: "💠" }, { name: "Omega Terminus", icon: "🧿" }
+        ];
+        
+        const GALAXIES_PER_UNIVERSE = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]; 
+        const WORLDS_PER_GALAXY = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]; 
+
+        const GALAXY_NAMES = [
+            ["Vórtice de Dirac", "Singularidad de Hawking"],
+            ["Resonancia Orbital", "Horizonte de Sucesos", "Brana Cósmica"],
+            ["Cúmulo de Taquiones", "Lente Gravitacional", "Paradoja de Fermi", "Abismo de Penrose"],
+            ["Puente de Einstein-Rosen", "Espuma Cuántica", "Cuerda Cerrada", "Entrelazamiento", "Materia Degenerada"],
+            ["Eón de Weyl", "Radiación de Fondo", "Falso Vacío", "Campo de Higgs", "Vector de Poynting", "Anillo de Kerr"],
+            ["Multiverso Insuflado", "Métrica de Schwarzschild", "Atractor Extraño", "Onda Gravitacional", "Bosón Oscuro", "Energía Fantasma", "Dispersión de Rayleigh"],
+            ["Principio de Incertidumbre", "Salto Cuántico", "Superposición", "Decoherencia", "Efecto Túnel", "Condensado de Bose", "Fluctuación Primordial", "Espacio de Hilbert"],
+            ["Expansión Métrica", "Constante Cosmológica", "Materia Bariónica", "Quasar Primigenio", "Blazar Estelar", "Pulsar Milisegundo", "Magnetar Erupción", "Agujero Blanco", "Enana Negra"],
+            ["Geometría No Euclidiana", "Tensor de Curvatura", "Espacio de Minkowski", "Variedad de Riemann", "Gravedad Bucle", "Holograma Cósmico", "Entropía Máxima", "Esfera de Dyson", "Enjambre Relativista", "Parámetro de Hubble"],
+            ["Límite de Chandrasekhar", "Colapso Gravitacional", "Fusión Nucleosintética", "Barrera de Coulomb", "Interacción Fuerte", "Interacción Débil", "Campo Electrodébil", "Ruptura de Simetría", "Axión Inercial", "Neutrino Estéril", "Velo de Planck"]
+        ];
+
+        function getGlobalWorldNumber(u, g, w) {
+            let total = 0;
+            for (let i = 0; i < u; i++) {
+                total += GALAXIES_PER_UNIVERSE[i] * WORLDS_PER_GALAXY[i];
+            }
+            total += g * WORLDS_PER_GALAXY[u];
+            total += w + 1;
+            return total;
+        }
+
+        let currentLevelInitialState = [];
+        let currentLevelMinMoves = 0;
+
+        const AVATARS = [
+            { id: 'meteorito_lava', name: 'meteorito de lava', img: 'meteorito de lava.png', cost: 10000 },
+            { id: 'cristal_alienigena', name: 'cristal alienígena', img: 'cristal alienígena.png', cost: 10000 },
+            { id: 'hielo_espacial', name: 'hielo espacial', img: 'hielo espacial.png', cost: 10000 },
+            { id: 'asteroide_metalico', name: 'asteroide metálico', img: 'asteroide metálico.png', cost: 10000 },
+            { id: 'nebulosa', name: 'nebulosa', img: 'nebulosa.png', cost: 10000 },
+            { id: 'plasma', name: 'plasma', img: 'plasma.png', cost: 10000 },
+            { id: 'planeta_tierra', name: 'planeta tierra', img: 'planeta tierra.png', cost: 10000 },
+            { id: 'piedra_lunar', name: 'piedra lunar', img: 'piedra lunar.png', cost: 10000 },
+            { id: 'materia_alienigena', name: 'materia alienígena', img: 'materia alienígena.png', cost: 10000 },
+            { id: 'biomasa_extraterrestre', name: 'biomasa extraterrestre', img: 'biomasa extraterrestre.png', cost: 10000 },
+            { id: 'obsidiana_cosmica', name: 'obsidiana cósmica', img: 'obsidiana cósmica.png', cost: 10000 },
+            { id: 'galaxia_encapsulada', name: 'galaxia encapsulada', img: 'galaxia encapsulada.png', cost: 10000 },
+            { id: 'nucleo_estrella', name: 'núcleo de estrella', img: 'núcleo de estrella.png', cost: 10000 },
+            { id: 'tecnologia_alienigena', name: 'tecnología alienígena', img: 'tecnología alienígena.png', cost: 10000 },
+            { id: 'cristal_energia', name: 'cristal de energía', img: 'cristal de energía.png', cost: 10000 },
+            { id: 'aurora_espacial', name: 'aurora espacial', img: 'aurora espacial.png', cost: 10000 },
+            { id: 'mineral_magnetico', name: 'mineral magnético', img: 'mineral magnético.png', cost: 10000 },
+            { id: 'agujero_negro', name: 'agujero negro', img: 'agujero negro.png', cost: 10000 },
+            { id: 'tecnologia_civilizacion_antigua', name: 'tecnología de civilización antigua', img: 'tecnología de civilización antigua.png', cost: 10000 },
+            { id: 'superficie_solar', name: 'superficie solar', img: 'superficie solar.png', cost: 10000 }
+        ];
+
+        /* Skin por defecto eliminada de la tienda visual, usando internal id 'default_skin' como fallback */
+        const SKINS = [
+            { id: 'meteorito_lava_skin', name: 'ficha meteorito de lava', img: 'ficha meteorito de lava.png', cost: 5000 },
+            { id: 'cristal_alienigena_skin', name: 'ficha cristal alienígena', img: 'ficha cristal alienígena.png', cost: 5000 },
+            { id: 'hielo_espacial_skin', name: 'ficha hielo espacial', img: 'ficha hielo espacial.png', cost: 5000 },
+            { id: 'asteroide_metalico_skin', name: 'ficha asteroide metálico', img: 'ficha asteroide metálico.png', cost: 5000 },
+            { id: 'nebulosa_skin', name: 'ficha nebulosa', img: 'ficha nebulosa.png', cost: 5000 },
+            { id: 'plasma_skin', name: 'ficha plasma', img: 'ficha plasma.png', cost: 5000 },
+            { id: 'planeta_tierra_skin', name: 'ficha planeta tierra', img: 'ficha planeta tierra.png', cost: 5000 },
+            { id: 'piedra_lunar_skin', name: 'ficha piedra lunar', img: 'ficha piedra lunar.png', cost: 5000 },
+            { id: 'materia_alienigena_skin', name: 'ficha materia alienígena', img: 'ficha materia alienígena.png', cost: 5000 },
+            { id: 'biomasa_extraterrestre_skin', name: 'ficha biomasa extraterrestre', img: 'ficha biomasa extraterrestre.png', cost: 5000 },
+            { id: 'obsidiana_cosmica_skin', name: 'ficha obsidiana cósmica', img: 'ficha obsidiana cósmica.png', cost: 5000 },
+            { id: 'galaxia_encapsulada_skin', name: 'ficha galaxia encapsulada', img: 'ficha galaxia encapsulada.png', cost: 5000 },
+            { id: 'nucleo_estrella_skin', name: 'ficha núcleo de estrella', img: 'ficha núcleo de estrella.png', cost: 5000 },
+            { id: 'tecnologia_alienigena_skin', name: 'ficha tecnología alienígena', img: 'ficha tecnología alienígena.png', cost: 5000 },
+            { id: 'cristal_energia_skin', name: 'ficha cristal de energía', img: 'ficha cristal de energía.png', cost: 5000 },
+            { id: 'aurora_espacial_skin', name: 'ficha aurora espacial', img: 'ficha aurora espacial.png', cost: 5000 },
+            { id: 'mineral_magnetico_skin', name: 'ficha mineral magnético', img: 'ficha mineral magnético.png', cost: 5000 },
+            { id: 'agujero_negro_skin', name: 'ficha agujero negro', img: 'ficha agujero negro.png', cost: 5000 },
+            { id: 'tecnologia_civilizacion_antigua_skin', name: 'ficha tecnología de civilización antigua', img: 'ficha tecnología de civilización antigua.png', cost: 5000 },
+            { id: 'superficie_solar_skin', name: 'ficha superficie solar', img: 'ficha superficie solar.png', cost: 5000 }
+        ];
+
+        // Base de datos fija para las misiones diarias (sin dificultad)
+        const MISSION_POOL = [
+            { id: 1, text: "Completa 1 nivel galáctico", type: "win_level", target: 1, reward: 150 },
+            { id: 2, text: "Completa 3 niveles galácticos", type: "win_level", target: 3, reward: 450 },
+            { id: 3, text: "Utiliza una pista de luz 💡", type: "use_hint", target: 1, reward: 100 },
+            { id: 4, text: "Detona un bloque con un destructor 💣", type: "use_destructor", target: 1, reward: 250 },
+            { id: 5, text: "Logra superar un nivel de forma Perfecta ✨", type: "perfect_level", target: 1, reward: 400 },
+            { id: 6, text: "Acumula un total de 25 movimientos", type: "make_moves", target: 25, reward: 200 },
+            { id: 7, text: "Recolecta 150 lunas superando niveles", type: "earn_coins", target: 150, reward: 300 },
+            { id: 8, text: "Completa un nivel avanzado (M3 o superior)", type: "win_high", target: 1, reward: 350 }
+        ];
+
+        let savedData = JSON.parse(localStorage.getItem('universeBlocksData')) || {};
+        
+        let loadedAvatars = savedData.ownedAvatars || [];
+        let loadedEquipped = savedData.equippedAvatar || 'default'; 
+
+        let loadedSkins = savedData.ownedSkins || [];
+        let loadedEquippedSkin = savedData.equippedSkin || 'default_skin'; 
+
+        let playerData = {
+            playerName: savedData.playerName || '',
+            coins: savedData.coins || 0,
+            hints: savedData.hints !== undefined ? savedData.hints : 3,
+            destructors: savedData.destructors || 0,
+            maxU: savedData.maxU || 0, maxG: savedData.maxG || 0, maxW: savedData.maxW || 0,
+            ownedAvatars: loadedAvatars,
+            equippedAvatar: loadedEquipped,
+            ownedSkins: loadedSkins,
+            equippedSkin: loadedEquippedSkin,
+            sound: savedData.sound !== undefined ? savedData.sound : true,
+            tutorialCompleted: savedData.tutorialCompleted || false,
+            dailyMissionsDate: savedData.dailyMissionsDate || '',
+            dailyMissions: savedData.dailyMissions || []
+        };
+
+        let currentU = 0, currentG = 0, currentW = 0;
+        let destructionMode = false;
+        
+        let currentTutStep = 0;
+        const tutorialSteps = [
+            { text: "¡Hola, viajero estelar! Te doy la bienvenida a Universe Blocks. Soy tu astronauta guía, ¡empecemos a explorar!", targetId: null },
+            { text: "Nos hemos quedado perdidos en el inmenso vacío... Nuestro combustible se agota y la única forma de volver es avanzar.", targetId: null },
+            { text: "Deberemos viajar por diferentes universos, resolviendo anomalías de bloques, para poder abrir los portales y regresar a casa.", targetId: null },
+            { text: "Antes de despegar, te enseñaré la Tienda Estelar. Aquí puedes comprar asombrosas personalizaciones con tus lunas. ¡Haz clic en TIENDA!", targetId: "btn-tut-tienda" },
+            { text: "¡Fantástico! Dentro de la Tienda puedes gastar tus Lunas Estelares en Avatares y Skins únicas. Ahora regresemos al menú principal pulsando VOLVER.", targetId: "btn-shop-volver" },
+            // Inyección interactiva de las Misiones Diarias dentro de la secuencia del tutorial
+            { text: "En la pantalla de inicio verás un nuevo botón con un bloc de notas 📝. Es tu panel de Misiones Diarias. ¡Haz clic en él!", targetId: "btn-tut-misiones" },
+            { text: "Aquí se listan 5 misiones aleatorias cada 24 horas. ¡Al completarlas podrás ganar muchísimas más Lunas Estelares! Pulsa VOLVER para continuar.", targetId: "btn-missions-volver" },
+            { text: "Excelente. También cuentas con un panel de configuración para tu aventura. Vamos a verlo, haz clic en OPCIONES.", targetId: "btn-tut-opciones" },
+            { text: "Aquí dentro podrás controlar aspectos como el Sonido o gestionar tu progreso. Salgamos de aquí dándole a VOLVER.", targetId: "btn-options-volver" },
+            { text: "¡Maravilloso! Ya conoces la base. Ahora llegó el momento de jugar de verdad. Haz clic en JUGAR.", targetId: "btn-tut-jugar" },
+            { text: "Este es el selector de Universos. Puedes deslizar la pantalla hacia los lados para explorarlos. Selecciona NEBULA PRIME para entrar.", targetId: "btn-universe-0" },
+            { text: "Cada Universo esconde impresionantes Galaxias llenas de acertijos. Selecciona nuestra primera parada: VÓRTICE DE DIRAC.", targetId: "btn-galaxy-0" },
+            { text: "¡Perfecto! Llegamos a los Mundos. Selecciona el primer nivel libre pulsando sobre M1 para iniciar tu entrenamiento.", targetId: "btn-world-0" },
+            { text: "¡Listo! Tu objetivo principal es deslizar los bloques del tablero para abrirle paso a la nave dorada 🚀 y sacarla por el portal luminoso de la derecha. ¡El cosmos es tuyo, comandante!", targetId: null }
+        ];
+        
+        function initTutorial() {
+            if (!playerData.tutorialCompleted) {
+                currentTutStep = 0;
+                document.getElementById('tutorial-overlay').style.display = 'block';
+                updateTutorial();
+            }
+        }
+        
+        function handleOverlayClick(e) {
+            const step = tutorialSteps[currentTutStep];
+            if (step && step.targetId) {
+                let targetEl = document.getElementById(step.targetId);
+                
+                if (!targetEl && step.targetId === 'btn-universe-0') targetEl = document.querySelector('.universe-card.unlocked');
+                if (!targetEl && step.targetId === 'btn-galaxy-0') targetEl = document.querySelector('#galaxy-grid .grid-btn');
+                if (!targetEl && step.targetId === 'btn-world-0') targetEl = document.querySelector('#world-grid .grid-btn');
+                
+                if (targetEl) {
+                    const rect = targetEl.getBoundingClientRect();
+                    if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                        targetEl.click();
+                    }
+                }
+            } else {
+                nextTutorialStep();
+            }
+        }
+        
+        function checkTutAdvance(id) {
+            if (!playerData.tutorialCompleted && tutorialSteps[currentTutStep] && tutorialSteps[currentTutStep].targetId === id) {
+                nextTutorialStep();
+            }
+        }
+        
+        function nextTutorialStep() {
+            currentTutStep++;
+            if (currentTutStep >= tutorialSteps.length) {
+                document.getElementById('tutorial-overlay').style.display = 'none';
+                document.getElementById('tutorial-hand').style.display = 'none';
+                document.querySelectorAll('.tut-highlight').forEach(el => el.classList.remove('tut-highlight'));
+                playerData.tutorialCompleted = true;
+                saveData();
+            } else {
+                updateTutorial();
+            }
+        }
+        
+        function updateTutorial() {
+            if (playerData.tutorialCompleted) return;
+            
+            const step = tutorialSteps[currentTutStep];
+            document.getElementById('speech-bubble').innerText = step.text;
+            
+            setTimeout(() => {
+                let targetEl = null;
+                
+                if (step.targetId) {
+                    targetEl = document.getElementById(step.targetId);
+                    
+                    if (!targetEl && step.targetId === 'btn-universe-0') {
+                        targetEl = document.querySelector('.universe-card.unlocked');
+                        if (targetEl) targetEl.id = 'btn-universe-0';
+                    }
+                    if (!targetEl && step.targetId === 'btn-galaxy-0') {
+                        targetEl = document.querySelector('#galaxy-grid .grid-btn');
+                        if (targetEl) targetEl.id = 'btn-galaxy-0';
+                    }
+                    if (!targetEl && step.targetId === 'btn-world-0') {
+                        targetEl = document.querySelector('#world-grid .grid-btn');
+                        if (targetEl) targetEl.id = 'btn-world-0';
+                    }
+                }
+                
+                document.querySelectorAll('.tut-highlight').forEach(el => el.classList.remove('tut-highlight'));
+                
+                const hand = document.getElementById('tutorial-hand');
+                const astroContainer = document.getElementById('astronaut-container');
+                const appRect = document.getElementById('app').getBoundingClientRect();
+                
+                if (targetEl) {
+                    targetEl.classList.add('tut-highlight');
+                    
+                    const rect = targetEl.getBoundingClientRect();
+                    
+                    const topPos = (rect.top - appRect.top) + rect.height + 5;
+                    const leftPos = (rect.left - appRect.left) + (rect.width / 2) - 20;
+                    
+                    hand.style.top = topPos + 'px';
+                    hand.style.left = leftPos + 'px';
+                    hand.style.display = 'block';
+
+                    // Lógica para posicionar al astronauta flotando de manera dinámica sin molestar
+                    if ((rect.top - appRect.top) > appRect.height / 2) {
+                        astroContainer.style.top = '70px';
+                        astroContainer.style.bottom = 'auto';
+                    } else {
+                        astroContainer.style.top = 'auto';
+                        astroContainer.style.bottom = '20px';
+                    }
+                } else {
+                    hand.style.display = 'none';
+                    astroContainer.style.top = 'auto';
+                    astroContainer.style.bottom = '20px';
+                }
+            }, 60);
+        }
+
+        // Lógica de gestión, refresco y sincronización de misiones diarias (24h)
+        function checkAndGenerateDailyMissions(force = false) {
+            const now = new Date();
+            const todayStr = now.toDateString();
+            
+            if (!playerData.dailyMissionsDate || playerData.dailyMissionsDate !== todayStr || force || !playerData.dailyMissions || playerData.dailyMissions.length === 0) {
+                playerData.dailyMissionsDate = todayStr;
+                let shuffled = [...MISSION_POOL].sort(() => 0.5 - Math.random());
+                playerData.dailyMissions = shuffled.slice(0, 5).map(m => ({
+                    text: m.text,
+                    type: m.type,
+                    target: m.target,
+                    reward: m.reward,
+                    progress: 0,
+                    completed: false
+                }));
+                saveData();
+            }
+        }
+
+        function updateMissionsCountdown() {
+            const now = new Date();
+            const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            const diff = tomorrow - now;
+            
+            if (diff <= 0) {
+                checkAndGenerateDailyMissions(true);
+                if (document.getElementById('missions-screen').classList.contains('active')) {
+                    buildMissionsScreen();
+                }
+                return;
+            }
+            
+            const hrs = String(Math.floor(diff / 3600000)).padStart(2, '0');
+            const mins = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
+            const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+            
+            const el = document.getElementById('missions-countdown');
+            if (el) el.innerText = `Reiniciar en: ${hrs}:${mins}:${secs}`;
+        }
+        setInterval(updateMissionsCountdown, 1000);
+
+        function buildMissionsScreen() {
+            checkAndGenerateDailyMissions();
+            const container = document.getElementById('missions-list');
+            if (!container) return;
+            container.innerHTML = '';
+            
+            playerData.dailyMissions.forEach(m => {
+                const item = document.createElement('div');
+                item.className = 'shop-item';
+                item.style.borderColor = m.completed ? '#00ff00' : 'var(--accent)';
+                item.style.background = m.completed ? 'rgba(0, 255, 0, 0.05)' : 'rgba(0, 255, 255, 0.05)';
+                
+                // Muestra de misión sin dificultad
+                item.innerHTML = `
+                    <div class="shop-item-info">
+                        <span class="shop-item-title">${m.text}</span>
+                        <span class="shop-item-desc">Progreso: ${m.progress}/${m.target} | +${m.reward} 🌙</span>
+                    </div>
+                    <div style="font-size: 24px; font-weight: bold; display: flex; align-items: center;">
+                        ${m.completed ? '<span style="color:#00ff00;">✔️</span>' : '<span style="color:#555;">⏳</span>'}
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function progressMission(type, amount = 1) {
+            if (!playerData.dailyMissions) return;
+            let dataChanged = false;
+            
+            playerData.dailyMissions.forEach(m => {
+                if (m.type === type && !m.completed) {
+                    m.progress = Math.min(m.target, m.progress + amount);
+                    if (m.progress >= m.target) {
+                        m.completed = true;
+                        playerData.coins += m.reward;
+                        dataChanged = true;
+                        showMissionToast(m.text);
+                    } else {
+                        dataChanged = true;
+                    }
+                }
+            });
+            
+            if (dataChanged) {
+                saveData();
+            }
+        }
+
+        function showMissionToast(text) {
+            const toast = document.getElementById('mission-toast');
+            const textEl = document.getElementById('mission-toast-text');
+            if (!toast || !textEl) return;
+            
+            textEl.innerText = text;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.transform = 'translateX(0)';
+            }, 50);
+            
+            setTimeout(() => {
+                toast.style.transform = 'translateX(-150%)';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                }, 400);
+            }, 3800);
+        }
+
+        function updateAvatarNameDisplay() {
+            const nameEl = document.getElementById('hud-player-name');
+            if (nameEl) {
+                nameEl.innerText = playerData.playerName ? playerData.playerName : '';
+            }
+        }
+
+        // Abre el visualizador a pantalla completa del Avatar del HUD superior izquierdo y permite poner nombre
+        function openLargeAvatar() {
+            const modalContent = document.getElementById('image-modal-content');
+            if (!modalContent) return;
+            
+            let imgHtml = '';
+            if (playerData.equippedAvatar === 'default' || !playerData.equippedAvatar) {
+                imgHtml = `
+                    <div style="width:220px; height:220px; background:#111; border-radius:50%; border:4px solid var(--accent); display:flex; justify-content:center; align-items:flex-end; box-shadow:0 0 30px var(--accent); overflow:hidden;">
+                        <svg viewBox="0 0 24 24" style="width: 85%; height: 85%; fill: #888; margin-bottom: -10px;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    </div>`;
+            } else {
+                const ava = AVATARS.find(a => a.id === playerData.equippedAvatar);
+                if (ava) {
+                    imgHtml = `<img id="image-modal-img" src="${ava.img}" style="max-width: 90vw; max-height: 50vh; border-radius: 15px; box-shadow: 0 0 40px var(--accent); pointer-events: none;">`;
+                }
+            }
+
+            modalContent.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center; gap: 20px;">
+                    ${imgHtml}
+                    <input type="text" id="avatar-name-input" placeholder="TU NOMBRE" value="${playerData.playerName || ''}" maxlength="15" autocomplete="off" style="background:rgba(0,0,0,0.8); border:2px solid var(--accent); color:white; font-family:'Orbitron', sans-serif; font-size:18px; padding:12px; border-radius:8px; text-align:center; font-weight:bold; text-transform:uppercase; outline:none; width: 80%; min-width: 200px; max-width: 250px; box-shadow: 0 0 15px rgba(0,255,255,0.3);" onclick="event.stopPropagation()">
+                </div>
+            `;
+            document.getElementById('image-modal').style.display = 'flex';
+
+            const nameInp = document.getElementById('avatar-name-input');
+            if (nameInp) {
+                nameInp.addEventListener('change', (e) => {
+                    playerData.playerName = e.target.value.trim().toUpperCase();
+                    saveData();
+                    updateAvatarNameDisplay();
+                });
+                nameInp.addEventListener('keyup', (e) => {
+                    if (e.key === 'Enter') {
+                        nameInp.blur();
+                        closeImageModal({target: {id: 'image-modal'}});
+                    }
+                });
+            }
+        }
+
+        function closeImageModal(e) {
+            if (e.target.id === 'image-modal' || e.target.id === 'image-modal-content') {
+                const nameInput = document.getElementById('avatar-name-input');
+                if (nameInput) {
+                    playerData.playerName = nameInput.value.trim().toUpperCase();
+                    saveData();
+                    updateAvatarNameDisplay();
+                }
+                document.getElementById('image-modal').style.display = 'none';
+            }
+        }
+
+        function saveData() { localStorage.setItem('universeBlocksData', JSON.stringify(playerData)); updateHUD(); }
+        
+        function updateHUD() {
+            document.getElementById('coin-count').innerText = playerData.coins;
+            document.getElementById('hint-count').innerText = playerData.hints;
+            if (document.getElementById('destructor-count')) {
+                document.getElementById('destructor-count').innerText = playerData.destructors;
+            }
+        }
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let actx;
+        function playSound(type) {
+            if(!playerData.sound) return;
+            if(!actx) actx = new AudioContext();
+            if(actx.state === 'suspended') actx.resume();
+
+            const osc = actx.createOscillator();
+            const gain = actx.createGain();
+            osc.connect(gain);
+            gain.connect(actx.destination);
+            const now = actx.currentTime;
+            
+            if (type === 'move') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(300, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+                gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            } else if (type === 'win') {
+                osc.type = 'square';
+                [440, 554, 659, 880].forEach((freq, i) => {
+                    setTimeout(() => {
+                        const o = actx.createOscillator(); const g = actx.createGain();
+                        o.type = 'triangle'; o.connect(g); g.connect(actx.destination);
+                        o.frequency.value = freq; g.gain.setValueAtTime(0.1, actx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime + 0.3);
+                        o.start(); o.stop(actx.currentTime + 0.3);
+                    }, i * 100);
+                });
+            } else if (type === 'buy') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, now); osc.frequency.setValueAtTime(900, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'destroy') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(20, now + 0.2);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            }
+        }
+
+        function nav(screenId, directionClass = 'zoom-in') {
+            if(!actx && playerData.sound) { actx = new AudioContext(); actx.resume(); }
+            
+            if (document.activeElement && document.activeElement.tagName === 'BUTTON') {
+                document.activeElement.blur();
+            }
+            
+            document.querySelectorAll('.screen').forEach(s => {
+                s.classList.remove('active', 'zoom-in', 'zoom-out');
+            });
+            
+            const target = document.getElementById(screenId + '-screen');
+            target.classList.add('active', directionClass);
+            updateHUD();
+
+            if (screenId === 'universe') buildUniverseSelect();
+            if (screenId === 'galaxy') buildGalaxySelect();
+            if (screenId === 'world') buildWorldSelect();
+            if (screenId === 'missions') buildMissionsScreen();
+            if (screenId === 'game') {
+                destructionMode = false;
+                document.getElementById('board-wrapper').classList.remove('destruction-mode');
+            }
+            
+            // Lógica para visibilidad del HUD superior (monedas y contenedor de perfil)
+            if(screenId === 'splash' || screenId === 'loading') {
+                document.getElementById('hud-coins').style.display = 'none';
+                document.getElementById('hud-avatar-container').style.display = 'none';
+            } else {
+                if(screenId !== 'menu') {
+                    document.getElementById('hud-coins').style.display = 'flex';
+                } else {
+                    document.getElementById('hud-coins').style.display = 'none';
+                }
+                document.getElementById('hud-avatar-container').style.display = 'flex';
+            }
+
+            // Control de visibilidad fijo y sin delay para el botón de misiones diarias
+            if (screenId === 'menu') {
+                document.getElementById('btn-tut-misiones').style.display = 'flex';
+            } else {
+                document.getElementById('btn-tut-misiones').style.display = 'none';
+            }
+            
+            if (!playerData.tutorialCompleted) updateTutorial();
+        }
+
+        window.onload = () => {
+            checkAndGenerateDailyMissions();
+            setTimeout(() => {
+                nav('loading');
+                let pct = 0;
+                let intv = setInterval(() => {
+                    pct += 15;
+                    document.getElementById('load-bar').style.width = Math.min(pct, 100) + '%';
+                    if (pct >= 100) {
+                        clearInterval(intv);
+                        setTimeout(() => {
+                            nav('menu');
+                            initTutorial(); 
+                        }, 300);
+                    }
+                }, 100);
+            }, 2000);
+            applyAvatar(); 
+        };
+
+        function toggleSound() {
+            playerData.sound = !playerData.sound;
+            saveData();
+            document.getElementById('sound-toggle').innerText = playerData.sound ? 'Sonido: Activado' : 'Sonido: Desactivado';
+        }
+
+        // Abre la ventana emergente de confirmación personalizada
+        function resetProgress() {
+            const mod = document.getElementById('confirm-reset-modal');
+            mod.style.display = 'flex';
+            setTimeout(() => mod.style.opacity = '1', 10);
+        }
+
+        function closeResetModal() {
+            const mod = document.getElementById('confirm-reset-modal');
+            mod.style.opacity = '0';
+            setTimeout(() => mod.style.display = 'none', 300);
+        }
+
+        function executeResetProgress() {
+            playerData = { 
+                playerName: '',
+                coins: 0, hints: 3, destructors: 0, maxU: 0, maxG: 0, maxW: 0, 
+                ownedAvatars: [], equippedAvatar: 'default',
+                ownedSkins: [], equippedSkin: 'default_skin', 
+                sound: playerData.sound, tutorialCompleted: false,
+                dailyMissionsDate: '',
+                dailyMissions: []
+            };
+            saveData();
+            applyAvatar();
+            closeResetModal();
+            checkAndGenerateDailyMissions(true);
+            nav('menu');
+        }
+
+        function buildUniverseSelect() {
+            const container = document.getElementById('universe-carousel');
+            container.innerHTML = '';
+            UNIVERSES.forEach((u, i) => {
+                const isUnlocked = i <= playerData.maxU;
+                const card = document.createElement('div');
+                card.className = `universe-card ${isUnlocked ? 'unlocked' : 'locked'}`;
+                card.innerHTML = `
+                    <div class="universe-icon">${isUnlocked ? u.icon : '🔒'}</div>
+                    <div class="universe-name">${u.name}</div>
+                `;
+                if(isUnlocked) card.onclick = () => { 
+                    currentU = i; 
+                    nav('galaxy', 'zoom-in'); 
+                    if (i === 0) checkTutAdvance('btn-universe-0');
+                };
+                container.appendChild(card);
+            });
+            setTimeout(() => {
+                const activeCard = container.children[playerData.maxU];
+                if(activeCard) activeCard.scrollIntoView({behavior: 'smooth', inline: 'center'});
+            }, 100);
+        }
+
+        function buildGalaxySelect() {
+            document.getElementById('gal-title').innerText = UNIVERSES[currentU].name + " - Galaxias";
+            const grid = document.getElementById('galaxy-grid');
+            grid.innerHTML = '';
+            const totalG = GALAXIES_PER_UNIVERSE[currentU];
+            
+            for(let i=0; i<totalG; i++) {
+                const isUnlocked = currentU < playerData.maxU || (currentU === playerData.maxU && i <= playerData.maxG);
+                const btn = document.createElement('button');
+                btn.className = 'grid-btn';
+                const galaxyName = GALAXY_NAMES[currentU][i];
+                btn.innerHTML = isUnlocked ? `<span style="font-weight:bold;">${galaxyName}</span><br><span style="font-size:11px;">Desbloqueada</span>` : `<span style="font-weight:bold;">${galaxyName}</span><br>🔒`;
+                if(isUnlocked) {
+                    btn.onclick = () => { 
+                        currentG = i; 
+                        nav('world', 'zoom-in'); 
+                        if (i === 0) checkTutAdvance('btn-galaxy-0');
+                    };
+                } else { btn.disabled = true; }
+                grid.appendChild(btn);
+            }
+        }
+
+        function buildWorldSelect() {
+            document.getElementById('world-title').innerText = `${GALAXY_NAMES[currentU][currentG]} - Mundos`;
+            const grid = document.getElementById('world-grid');
+            grid.innerHTML = '';
+            const maxWorlds = WORLDS_PER_GALAXY[currentU];
+            
+            for(let i=0; i<maxWorlds; i++) {
+                const isUnlocked = currentU < playerData.maxU || 
+                                   (currentU === playerData.maxU && currentG < playerData.maxG) ||
+                                   (currentU === playerData.maxU && currentG === playerData.maxG && i <= playerData.maxW);
+                const btn = document.createElement('button');
+                btn.className = 'grid-btn';
+                let globalNum = getGlobalWorldNumber(currentU, currentG, i);
+                btn.innerText = `M${globalNum}`;
+                if(isUnlocked) {
+                    btn.onclick = () => { 
+                        currentW = i; 
+                        document.getElementById('board-wrapper').style.opacity = 1;
+                        document.getElementById('board-wrapper').style.transform = 'scale(1)';
+                        nav('game', 'zoom-in'); 
+                        loadWorld(currentU, currentG, currentW); 
+                        if (i === 0) checkTutAdvance('btn-world-0');
+                    };
+                } else {
+                    btn.innerText = '🔒';
+                    btn.disabled = true;
+                }
+                grid.appendChild(btn);
+            }
+        }
+
+        function generateShopItemHtml(item, type) {
+            const isOwned = type === 'avatar' ? playerData.ownedAvatars.includes(item.id) : playerData.ownedSkins.includes(item.id);
+            const isEquipped = type === 'avatar' ? playerData.equippedAvatar === item.id : playerData.equippedSkin === item.id;
+            
+            let btnHtml = '';
+            if (isEquipped) {
+                btnHtml = `<button class="shop-btn-new" onclick="equipItem('${type}', '${item.id}')" style="border-color:#0f0; color:#0f0;">EN USO</button>`;
+            } else if (isOwned) {
+                btnHtml = `<button class="shop-btn-new" onclick="equipItem('${type}', '${item.id}')">EQUIPAR</button>`;
+            } else {
+                let costText = item.cost > 0 ? `${item.cost} 🌙` : `GRATIS`;
+                btnHtml = `<button class="shop-btn-new" onclick="buyItem('${type}', ${item.cost}, '${item.id}')">${costText}</button>`;
+            }
+
+            return `
+                <div class="shop-item-new">
+                    <div class="shop-item-left" onclick="showImageModal('${item.img}')">
+                        <div class="shop-img-box">
+                            <img src="${item.img}" alt="${item.name}" style="max-width: 90%; max-height: 90%; object-fit: contain;">
+                        </div>
+                        <span class="shop-item-title-new">${item.name}</span>
+                    </div>
+                    <div class="shop-item-right">
+                        ${btnHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function buildShop() {
+            const list = document.getElementById('shop-list');
+            
+            list.innerHTML = `
+                <h3 style="color:var(--accent); text-align:center; font-family:'Orbitron'; margin:10px 0 5px 0;">OBJETOS</h3>
+                <div class="shop-item">
+                    <div class="shop-item-info">
+                        <span class="shop-item-title">💡 Pistas</span>
+                        <span class="shop-item-desc">+3 Pistas infalibles</span>
+                    </div>
+                    <button class="shop-btn" onclick="buyItem('hints', 50, 3)">50 🌙</button>
+                </div>
+                <div class="shop-item" style="border-color: #ff4444; background: rgba(255, 68, 68, 0.1);">
+                    <div class="shop-item-info">
+                        <span class="shop-item-title" style="color:#ff4444;">💣 Destructor</span>
+                        <span class="shop-item-desc">Rompe 1 bloque (ideal si te atascas)</span>
+                    </div>
+                    <button class="shop-btn" style="border-color:#ff4444; color:#ff4444;" onclick="buyItem('destructor', 150, 1)">150 🌙</button>
+                </div>
+            `;
+            
+            list.innerHTML += `<h3 style="color:var(--accent); text-align:center; font-family:'Orbitron'; margin:20px 0 5px 0;">AVATARES GALÁCTICOS</h3>`;
+            AVATARS.forEach(ava => {
+                list.innerHTML += generateShopItemHtml(ava, 'avatar');
+            });
+
+            list.innerHTML += `<h3 style="color:var(--accent); text-align:center; font-family:'Orbitron'; margin:20px 0 5px 0;">SKINS GALÁCTICAS</h3>`;
+            SKINS.forEach(skin => {
+                list.innerHTML += generateShopItemHtml(skin, 'skin');
+            });
+            
+            if (!playerData.tutorialCompleted) setTimeout(updateTutorial, 60);
+        }
+
+        function showImageModal(src) {
+            const modalContent = document.getElementById('image-modal-content');
+            if (!modalContent) return;
+            modalContent.innerHTML = `<img id="image-modal-img" src="${src}" style="max-width: 90vw; max-height: 80vh; border-radius: 15px; box-shadow: 0 0 40px var(--accent); pointer-events: none;">`;
+            document.getElementById('image-modal').style.display = 'flex';
+        }
+
+        function closeShopAlert() {
+            const mod = document.getElementById('shop-alert-modal');
+            mod.classList.remove('show');
+            setTimeout(() => mod.style.display = 'none', 300);
+        }
+        
+        function closeShopAlertAndPlay() {
+            closeShopAlert();
+            nav('universe');
+        }
+
+        function buyItem(type, cost, value) {
+            if(playerData.coins >= cost) {
+                playerData.coins -= cost;
+                playSound('buy');
+                if(type === 'hints') playerData.hints += value;
+                if(type === 'destructor') playerData.destructors += value;
+                if(type === 'avatar') playerData.ownedAvatars.push(value);
+                if(type === 'skin') playerData.ownedSkins.push(value);
+                saveData();
+                buildShop();
+            } else {
+                const mod = document.getElementById('shop-alert-modal');
+                mod.style.display = 'flex';
+                setTimeout(() => mod.classList.add('show'), 10);
+            }
+        }
+
+        function equipItem(type, id) {
+            if (type === 'avatar') {
+                if (playerData.equippedAvatar === id) {
+                    playerData.equippedAvatar = 'default';
+                } else {
+                    playerData.equippedAvatar = id;
+                }
+            }
+            if (type === 'skin') {
+                if (playerData.equippedSkin === id) {
+                    playerData.equippedSkin = 'default_skin';
+                } else {
+                    playerData.equippedSkin = id;
+                }
+            }
+            saveData();
+            applyAvatar(); 
+            buildShop();
+        }
+
+        function applyAvatar() {
+            const logo = document.getElementById('menu-logo');
+            logo.innerHTML = `<div class="css-golden-token" style="border-radius: 8px;"><span class="css-golden-token-icon" style="font-size: 40px;">🚀</span></div>`;
+            
+            if (blocksContainer && blocksContainer.innerHTML !== '') {
+                renderBlocks();
+            }
+
+            // Lógica del visualizador de HUD superior
+            const hudAvatar = document.getElementById('hud-avatar');
+            if (hudAvatar) {
+                if (playerData.equippedAvatar === 'default' || !playerData.equippedAvatar) {
+                    hudAvatar.innerHTML = `<svg viewBox="0 0 24 24" class="default-avatar-svg"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+                } else {
+                    const ava = AVATARS.find(a => a.id === playerData.equippedAvatar);
+                    if (ava) {
+                        hudAvatar.innerHTML = `<img src="${ava.img}" alt="Avatar">`;
+                    } else {
+                        hudAvatar.innerHTML = `<svg viewBox="0 0 24 24" class="default-avatar-svg"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+                    }
+                }
+            }
+            
+            updateAvatarNameDisplay();
+        }
+
+        function cloneState(st) { return st.map(b => ({...b})); }
+        function hashState(st) { return st.map(b => `${b.id}:${b.x},${b.y}`).join('|'); }
+
+        function getValidMoves(state) {
+            let moves = [];
+            for (let i = 0; i < state.length; i++) {
+                let b = state[i];
+                const isHoriz = b.w > b.h;
+                
+                let minB = 0, maxB = isHoriz ? COLS - b.w : ROWS - b.h;
+                for (let j = 0; j < state.length; j++) {
+                    if (i === j) continue;
+                    let o = state[j];
+                    if (isHoriz) {
+                        if (b.y < o.y + o.h && b.y + b.h > o.y) {
+                            if (o.x < b.x) minB = Math.max(minB, o.x + o.w);
+                            else maxB = Math.min(maxB, o.x - b.w);
+                        }
+                    } else {
+                        if (b.x < o.x + o.w && b.x + b.w > o.x) {
+                            if (o.y < b.y) minB = Math.max(minB, o.y + o.h);
+                            else maxB = Math.min(maxB, o.y - b.h);
+                        }
+                    }
+                }
+                
+                let currentVal = isHoriz ? b.x : b.y;
+                for(let v = minB; v <= maxB; v++) {
+                    if(v !== currentVal) moves.push({ id: b.id, target: v, isHoriz });
+                }
+            }
+            return moves;
+        }
+
+        function applyMove(state, move) {
+            let ns = cloneState(state);
+            let b = ns.find(x => x.id === move.id);
+            if(move.isHoriz) b.x = move.target; else b.y = move.target;
+            return ns;
+        }
+
+        function solveBFS(initialState, maxDepth = 15000) {
+            let queue = [{ state: cloneState(initialState), path: [] }];
+            let visited = new Set();
+            visited.add(hashState(initialState));
+            let iter = 0;
+
+            while (queue.length > 0 && iter < maxDepth) {
+                let curr = queue.shift();
+                let ship = curr.state.find(b => b.isShip);
+                if (!ship) break;
+                
+                if (ship.x === COLS - ship.w) return curr.path;
+
+                let moves = getValidMoves(curr.state);
+                for (let m of moves) {
+                    let nextSt = applyMove(curr.state, m);
+                    let h = hashState(nextSt);
+                    if (!visited.has(h)) {
+                        visited.add(h);
+                        queue.push({ state: nextSt, path: [...curr.path, m] });
+                    }
+                }
+                iter++;
+                if (queue.length > 40000) break;
+            }
+            return null;
+        }
+
+        const PREDEFINED_WORLDS = {
+            "0_0_0": [
+                { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true },
+                { id: 1, x: 1, y: 0, w: 1, h: 2 },
+                { id: 2, x: 2, y: 2, w: 1, h: 2 },
+                { id: 3, x: 4, y: 1, w: 1, h: 2 },
+                { id: 4, x: 0, y: 4, w: 1, h: 2 },
+                { id: 5, x: 3, y: 4, w: 3, h: 1 }
+            ],
+            "0_0_1": [
+                { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, 
+                { id: 1, x: 0, y: 0, w: 3, h: 1 },               
+                { id: 2, x: 1, y: 4, w: 2, h: 1 },               
+                { id: 3, x: 3, y: 2, w: 1, h: 3 },               
+                { id: 4, x: 5, y: 1, w: 1, h: 2 },               
+                { id: 5, x: 4, y: 5, w: 2, h: 1 }                
+            ],
+            "0_0_2": [
+                { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, 
+                { id: 1, x: 0, y: 0, w: 2, h: 1 },               
+                { id: 2, x: 1, y: 3, w: 1, h: 2 },               
+                { id: 3, x: 3, y: 0, w: 1, h: 2 },               
+                { id: 4, x: 3, y: 4, w: 2, h: 1 },               
+                { id: 5, x: 3, y: 5, w: 3, h: 1 },
+                { id: 6, x: 5, y: 2, w: 1, h: 3 }                
+            ],
+            "0_0_3": [
+                { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, 
+                { id: 1, x: 0, y: 4, w: 3, h: 1 },               
+                { id: 2, x: 2, y: 0, w: 1, h: 2 },               
+                { id: 3, x: 3, y: 1, w: 1, h: 2 },               
+                { id: 4, x: 3, y: 4, w: 1, h: 2 },               
+                { id: 5, x: 4, y: 2, w: 1, h: 3 },
+                { id: 6, x: 5, y: 0, w: 1, h: 2 }                
+            ],
+
+//NIVEL 5
+"0_0_4": [
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 3, w: 1, h: 3 },
+    { id: 3, x: 2, y: 3, w: 2, h: 1 },
+    { id: 4, x: 2, y: 5, w: 2, h: 1 },
+    { id: 5, x: 3, y: 1, w: 2, h: 1 },
+    { id: 6, x: 3, y: 4, w: 3, h: 1 },
+    { id: 7, x: 4, y: 2, w: 1, h: 2 }
+    
+],
+//NIVEL 6
+"0_0_5": [
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja (salida)
+    { id: 1, x: 0, y: 1, w: 2, h: 1 },               // Horizontal arriba a la izquierda
+    { id: 2, x: 0, y: 3, w: 1, h: 2 },               // Vertical corta abajo a la izquierda
+    { id: 3, x: 1, y: 3, w: 1, h: 3 },               // Vertical larga abajo a la izquierda
+    { id: 4, x: 2, y: 1, w: 1, h: 2 },               // Vertical 1 (derecha de la ficha roja)
+    { id: 5, x: 3, y: 1, w: 1, h: 2 },               // Vertical 2
+    { id: 6, x: 4, y: 1, w: 1, h: 2 },               // Vertical 3
+    { id: 7, x: 5, y: 1, w: 1, h: 2 },               // Vertical 4 (pegada a la pared derecha)
+    { id: 8, x: 2, y: 3, w: 2, h: 1 },               // Horizontal centro
+    { id: 9, x: 2, y: 5, w: 2, h: 1 },               // Horizontal abajo (mitad)
+    { id: 10, x: 4, y: 5, w: 2, h: 1 }               // Horizontal abajo (esquina derecha)
+],
+//NIVEL 7
+"0_0_6": [
+    { id: 0, x: 3, y: 2, w: 2, h: 1, isShip: true }, 
+    { id: 1, x: 0, y: 0, w: 3, h: 1 },               
+    { id: 2, x: 0, y: 1, w: 2, h: 1 },               
+    { id: 3, x: 0, y: 2, w: 1, h: 2 },               
+    { id: 4, x: 0, y: 5, w: 2, h: 1 },               
+    { id: 5, x: 1, y: 3, w: 1, h: 2 },               
+    { id: 6, x: 2, y: 1, w: 1, h: 2 },              
+    { id: 7, x: 2, y: 4, w: 2, h: 1 },               
+    { id: 8, x: 3, y: 0, w: 1, h: 2 },              
+    { id: 9, x: 4, y: 4, w: 2, h: 1 },              
+    { id: 10, x: 5, y:0, w: 1, h: 2 },               
+    { id: 11, x: 5, y:2, w: 1, h: 2 }
+
+],
+
+//NIVEL 8
+
+"0_0_7": [
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 1, h: 3 },
+    { id: 2, x: 0, y: 5, w: 2, h: 1 },
+    { id: 3, x: 1, y: 0, w: 2, h: 1 },
+    { id: 4, x: 1, y: 1, w: 3, h: 1 },
+    { id: 5, x: 1, y: 2, w: 1, h: 3 },
+    { id: 6, x: 2, y: 3, w: 1, h: 2 },
+    { id: 7, x: 3, y: 0, w: 2, h: 1 },
+    { id: 8, x: 3, y: 3, w: 3, h: 1 },
+    { id: 9, x: 3, y: 4, w: 3, h: 1 },
+    { id: 10, x: 3, y: 5, w: 2, h: 1 },
+    { id: 11, x: 4, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 9
+
+"0_0_8": [
+    { id: 0, x: 3, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 0, y: 4, w: 2, h: 1 },
+    { id: 4, x: 1, y: 0, w: 1, h: 2 },
+    { id: 5, x: 1, y: 2, w: 1, h: 2 },
+    { id: 6, x: 2, y: 0, w: 1, h: 3 },
+    { id: 7, x: 2, y: 5, w: 2, h: 1 },
+    { id: 8, x: 3, y: 0, w: 1, h: 2 },
+    { id: 9, x: 3, y: 3, w: 1, h: 2 },
+    { id: 10, x: 4, y: 0, w: 2, h: 1 },
+    { id: 11, x: 4, y: 3, w: 2, h: 1 },
+    { id: 12, x: 4, y: 4, w: 1, h: 2 },
+    { id: 13, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 10
+
+"0_0_9": [
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 3, w: 1, h: 3 },
+    { id: 2, x: 1, y: 4, w: 3, h: 1 },
+    { id: 3, x: 3, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 11
+
+"0_1_0":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 3, w: 1, h: 2 },
+    { id: 2, x: 0, y: 0, w: 2, h: 1 },
+    { id: 3, x: 2, y: 0, w: 2, h: 1 },
+    { id: 4, x: 2, y: 5, w: 3, h: 1 },
+    { id: 5, x: 3, y: 4, w: 2, h: 1 },
+    { id: 6, x: 4, y: 0, w: 1, h: 3 },
+    { id: 7, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 12
+
+"0_1_1":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 1, h: 3 },
+    { id: 2, x: 0, y: 3, w: 3, h: 1 },
+    { id: 3, x: 1, y: 0, w: 2, h: 1 },
+    { id: 4, x: 1, y: 1, w: 3, h: 1 },
+    { id: 5, x: 1, y: 5, w: 3, h: 1 },
+    { id: 6, x: 3, y: 2, w: 1, h: 3 },
+    { id: 7, x: 4, y: 0, w: 1, h: 3 },
+    { id: 8, x: 5, y: 0, w: 1, h: 3 }
+],
+ 
+//NIVEL 13
+
+"0_1_2":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 3, h: 1 },
+    { id: 3, x: 0, y: 2, w: 1, h: 2 },
+    { id: 4, x: 1, y: 2, w: 1, h: 2 },
+    { id: 5, x: 1, y: 4, w: 1, h: 2 },
+    { id: 6, x: 4, y: 1, w: 1, h: 2 },
+    { id: 7, x: 4, y: 3, w: 2, h: 1 },
+    { id: 8, x: 4, y: 4, w: 2, h: 1 },
+    { id: 9, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 14
+
+"0_1_3":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 1, y: 0, w: 1, h: 2 },
+    { id: 2, x: 1, y: 3, w: 1, h: 2 },
+    { id: 3, x: 2, y: 3, w: 3, h: 1 },
+    { id: 4, x: 3, y: 0, w: 1, h: 3 },
+    { id: 5, x: 4, y: 0, w: 2, h: 1 },
+    { id: 6, x: 4, y: 1, w: 2, h: 1 },
+    { id: 7, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 15
+
+"0_1_4":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 1, w: 2, h: 1 },
+    { id: 2, x: 0, y: 5, w: 3, h: 1 },
+    { id: 3, x: 1, y: 2, w: 1, h: 3 },
+    { id: 4, x: 2, y: 0, w: 1, h: 2 },
+    { id: 5, x: 3, y: 0, w: 3, h: 1 },
+    { id: 6, x: 3, y: 1, w: 2, h: 1 },
+    { id: 7, x: 3, y: 3, w: 1, h: 3 },
+    { id: 8, x: 4, y: 3, w: 2, h: 1 },
+    { id: 9, x: 4, y: 4, w: 1, h: 2 },
+    { id: 10, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 16
+
+"0_1_5":[
+    { id: 0, x: 3, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 4, w: 3, h: 1 },
+    { id: 2, x: 1, y: 0, w: 1, h: 3 },
+    { id: 3, x: 2, y: 0, w: 1, h: 2 },
+    { id: 4, x: 2, y: 2, w: 1, h: 2 },
+    { id: 5, x: 2, y: 5, w: 2, h: 1 },
+    { id: 6, x: 3, y: 3, w: 1, h: 2 },
+    { id: 7, x: 4, y: 0, w: 1, h: 2 },
+    { id: 8, x: 4, y: 3, w: 2, h: 1 },
+    { id: 9, x: 4, y: 4, w: 1, h: 2 },
+    { id: 10, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 17
+
+"0_1_6":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 1, w: 1, h: 3 },
+    { id: 2, x: 0, y: 4, w: 2, h: 1 },
+    { id: 3, x: 1, y: 0, w: 1, h: 2 },
+    { id: 4, x: 2, y: 0, w: 1, h: 2 },
+    { id: 5, x: 2, y: 3, w: 1, h: 2 },
+    { id: 6, x: 3, y: 0, w: 1, h: 3 },
+    { id: 7, x: 3, y: 3, w: 3, h: 1 },
+    { id: 8, x: 4, y: 0, w: 1, h: 3 },
+    { id: 9, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 18
+
+"0_1_7":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 2, h: 1 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 1, y: 0, w: 2, h: 1 },
+    { id: 5, x: 1, y: 5, w: 2, h: 1 },
+    { id: 6, x: 2, y: 1, w: 1, h: 2 },
+    { id: 7, x: 2, y: 3, w: 2, h: 1 },
+    { id: 8, x: 3, y: 1, w: 3, h: 1 },
+    { id: 9, x: 3, y: 4, w: 1, h: 2 },
+    { id: 10, x: 4, y: 2, w: 1, h: 3 },
+    { id: 11, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 19
+
+"0_1_8":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 0, y: 4, w: 2, h: 1 },
+    { id: 4, x: 0, y: 5, w: 2, h: 1 },
+    { id: 5, x: 2, y: 3, w: 1, h: 3 },
+    { id: 6, x: 3, y: 0, w: 1, h: 2 },
+    { id: 7, x: 3, y: 2, w: 1, h: 2 },
+    { id: 8, x: 3, y: 5, w: 2, h: 1 },
+    { id: 9, x: 4, y: 0, w: 2, h: 1 },
+    { id: 10, x: 4, y: 1, w: 1, h: 2 },
+    { id: 11, x: 4, y: 3, w: 1, h: 2 },
+    { id: 12, x: 5, y: 1, w: 1, h: 2 },
+    { id: 13, x: 5, y: 3, w: 1, h: 2 }
+],
+
+//NIVEL 20
+
+"0_1_9":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 3, h: 1 },
+    { id: 2, x: 0, y: 1, w: 1, h: 2 },
+    { id: 3, x: 0, y: 5, w: 2, h: 1 },
+    { id: 4, x: 2, y: 5, w: 2, h: 1 },
+    { id: 5, x: 3, y: 0, w: 1, h: 2 },
+    { id: 6, x: 4, y: 1, w: 2, h: 1 },
+    { id: 7, x: 4, y: 2, w: 1, h: 2 },
+    { id: 8, x: 4, y: 4, w: 1, h: 2 },
+    { id: 9, x: 5, y: 2, w: 1, h: 2 },
+    { id: 10, x: 5, y: 4, w: 1, h: 2 }
+],
+
+//NIVEL 21
+
+"1_0_0":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 2, h: 1 },
+    { id: 3, x: 1, y: 3, w: 1, h: 2 },
+    { id: 4, x: 2, y: 1, w: 1, h: 2 },
+    { id: 5, x: 2, y: 3, w: 2, h: 1 },
+    { id: 6, x: 4, y: 1, w: 1, h: 2 },
+    { id: 7, x: 4, y: 3, w: 2, h: 1 },
+    { id: 8, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 22
+
+"1_0_1":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true },
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 2, h: 1 },
+    { id: 3, x: 0, y: 2, w: 1, h: 2 },
+    { id: 4, x: 0, y: 4, w: 1, h: 2 },
+    { id: 5, x: 1, y: 4, w: 1, h: 2 },
+    { id: 6, x: 2, y: 3, w: 2, h: 1 },
+    { id: 7, x: 4, y: 0, w: 1, h: 3 },
+    { id: 8, x: 4, y: 3, w: 2, h: 1 },
+    { id: 9, x: 5, y: 0, w: 1, h: 3 },
+    { id: 10, x: 1, y: 2, w: 1, h: 2 },
+    { id: 11, x: 2, y: 4, w: 1, h: 2 },
+    { id: 12, x: 3, y: 4, w: 1, h: 2 }
+],
+
+//NIVEL 23
+
+"1_0_2":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 1, y: 0, w: 3, h: 1 },
+    { id: 2, x: 5, y: 0, w: 1, h: 3 },
+    { id: 3, x: 0, y: 1, w: 3, h: 1 },
+    { id: 4, x: 3, y: 1, w: 1, h: 2 },
+    { id: 5, x: 4, y: 1, w: 1, h: 2 },
+    { id: 6, x: 2, y: 2, w: 1, h: 3 },
+    { id: 7, x: 0, y: 3, w: 1, h: 3 },
+    { id: 8, x: 1, y: 3, w: 1, h: 3 },
+    { id: 9, x: 3, y: 3, w: 1, h: 2 },
+    { id: 10, x: 4, y: 3, w: 2, h: 1 },
+    { id: 11, x: 4, y: 4, w: 1, h: 2 }
+],
+
+
+//NIVEL 24
+
+"1_0_3":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 4, y: 0, w: 1, h: 3 },
+    { id: 2, x: 5, y: 0, w: 1, h: 2 },
+    { id: 3, x: 5, y: 2, w: 1, h: 2 },
+    { id: 4, x: 1, y: 3, w: 3, h: 1 },
+    { id: 5, x: 3, y: 4, w: 1, h: 2 },
+    { id: 6, x: 4, y: 4, w: 2, h: 1 }
+],
+
+//NIVEL 25
+
+"1_0_4":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 4, y: 0, w: 1, h: 3 },
+    { id: 3, x: 5, y: 0, w: 1, h: 2 },
+    { id: 4, x: 5, y: 2, w: 1, h: 2 },
+    { id: 5, x: 0, y: 3, w: 1, h: 3 },
+    { id: 6, x: 1, y: 3, w: 1, h: 3 },
+    { id: 7, x: 2, y: 3, w: 3, h: 1 },
+    { id: 8, x: 2, y: 4, w: 3, h: 1 }
+],
+
+
+//NIVEL 26
+
+"1_0_5":[
+    { id: 0, x: 3, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja (Nota: Está en la fila y:3)
+    { id: 1, x: 1, y: 0, w: 2, h: 1 },
+    { id: 2, x: 1, y: 1, w: 1, h: 2 },
+    { id: 3, x: 1, y: 3, w: 2, h: 1 },
+    { id: 4, x: 1, y: 4, w: 1, h: 2 },
+    { id: 5, x: 2, y: 1, w: 1, h: 2 },
+    { id: 6, x: 2, y: 4, w: 1, h: 2 },
+    { id: 7, x: 3, y: 0, w: 1, h: 2 },
+    { id: 8, x: 3, y: 4, w: 3, h: 1 },
+    { id: 9, x: 4, y: 0, w: 2, h: 1 },
+    { id: 10, x:5, y: 1, w: 1, h: 3 }
+    
+],
+
+//NIVEL 27
+
+"1_0_6":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 3, h: 1 },
+    { id: 2, x: 3, y: 0, w: 1, h: 3 },
+    { id: 3, x: 0, y: 1, w: 2, h: 1 },
+    { id: 4, x: 4, y: 1, w: 2, h: 1 },
+    { id: 5, x: 0, y: 2, w: 1, h: 2 },
+    { id: 6, x: 0, y: 4, w: 1, h: 2 },
+    { id: 7, x: 1, y: 4, w: 3, h: 1 }
+],
+
+
+//NIVEL 28
+
+"1_0_7":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 1, y: 5, w: 2, h: 1 },
+    { id: 2, x: 2, y: 1, w: 1, h: 2 },
+    { id: 3, x: 3, y: 5, w: 2, h: 1 },
+    { id: 4, x: 4, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 29
+
+"1_0_8":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 1, y: 0, w: 2, h: 1 },
+    { id: 3, x: 1, y: 3, w: 1, h: 3 },
+    { id: 4, x: 2, y: 1, w: 1, h: 2 },
+    { id: 5, x: 2, y: 3, w: 3, h: 1 },
+    { id: 6, x: 2, y: 5, w: 2, h: 1 },
+    { id: 7, x: 3, y: 0, w: 1, h: 2 },
+    { id: 8, x: 4, y: 1, w: 2, h: 1 },
+    { id: 9, x: 4, y: 4, w: 2, h: 1 },
+    { id: 10, x: 4, y: 5, w: 2, h: 1 },
+    { id: 11, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 30
+
+"1_0_9":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 3, w: 1, h: 2 },
+    { id: 3, x: 1, y: 3, w: 1, h: 3 },
+    { id: 4, x: 2, y: 1, w: 2, h: 1 },
+    { id: 5, x: 2, y: 2, w: 1, h: 3 },
+    { id: 6, x: 2, y: 5, w: 2, h: 1 },
+    { id: 7, x: 3, y: 2, w: 1, h: 2 },
+    { id: 8, x: 4, y: 1, w: 2, h: 1 },
+    { id: 9, x: 4, y: 4, w: 2, h: 1 },
+    { id: 10, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 31
+
+"1_0_10":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 3, h: 1 },
+    { id: 3, x: 4, y: 0, w: 1, h: 3 },
+    { id: 4, x: 5, y: 1, w: 1, h: 2 },
+    { id: 5, x: 1, y: 2, w: 1, h: 2 },
+    { id: 6, x: 3, y: 3, w: 1, h: 2 },
+    { id: 7, x: 1, y: 4, w: 1, h: 2 },
+    { id: 8, x: 2, y: 5, w: 3, h: 1 }
+],
+
+//NIVEL 32
+
+"1_0_11":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 1, w: 2, h: 1 },
+    { id: 2, x: 2, y: 1, w: 1, h: 2 },
+    { id: 3, x: 3, y: 0, w: 1, h: 2 },
+    { id: 4, x: 4, y: 1, w: 2, h: 1 },
+    { id: 5, x: 2, y: 3, w: 2, h: 1 },
+    { id: 6, x: 4, y: 2, w: 1, h: 3 },
+    { id: 7, x: 5, y: 2, w: 1, h: 2 },
+    { id: 8, x: 2, y: 4, w: 1, h: 2 },
+    { id: 9, x: 5, y: 4, w: 1, h: 2 }
+],
+
+
+//NIVEL 33
+
+"1_0_12":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 3 },
+    { id: 2, x: 1, y: 0, w: 1, h: 2 },
+    { id: 3, x: 2, y: 0, w: 1, h: 2 },
+    { id: 4, x: 3, y: 0, w: 3, h: 1 },
+    { id: 5, x: 3, y: 1, w: 1, h: 3 },
+    { id: 6, x: 5, y: 1, w: 1, h: 2 },
+    { id: 7, x: 0, y: 3, w: 2, h: 1 },
+    { id: 8, x: 2, y: 3, w: 1, h: 2 },
+    { id: 9, x: 4, y: 3, w: 2, h: 1 },
+    { id: 10, x: 5, y: 4, w: 1, h: 2 },
+    { id: 11, x: 1, y: 5, w: 3, h: 1 }
+],
+
+//NIVEL 34
+
+"1_0_13":[
+    { id: 0, x: 3, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 1, y: 0, w: 1, h: 2 },
+    { id: 3, x: 2, y: 0, w: 2, h: 1 },
+    { id: 4, x: 4, y: 0, w: 2, h: 1 },
+    { id: 5, x: 2, y: 1, w: 1, h: 2 },
+    { id: 6, x: 5, y: 1, w: 1, h: 2 },
+    { id: 7, x: 1, y: 2, w: 1, h: 2 },
+    { id: 8, x: 2, y: 3, w: 2, h: 1 },
+    { id: 9, x: 4, y: 3, w: 2, h: 1 },
+    { id: 10, x: 2, y: 4, w: 1, h: 2 },
+    { id: 11, x: 5, y: 4, w: 1, h: 2 },
+    { id: 12, x: 0, y: 5, w: 2, h: 1 },
+    { id: 13, x: 3, y: 5, w: 2, h: 1 }
+],
+
+
+//NIVEL 35
+
+"1_0_14":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 4, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 3, h: 1 },
+    { id: 3, x: 3, y: 0, w: 1, h: 2 },
+    { id: 4, x: 4, y: 1, w: 1, h: 2 },
+    { id: 5, x: 5, y: 1, w: 1, h: 2 },
+    { id: 6, x: 0, y: 2, w: 1, h: 2 },
+    { id: 7, x: 1, y: 3, w: 2, h: 1 },
+    { id: 8, x: 3, y: 2, w: 1, h: 2 },
+    { id: 9, x: 0, y: 4, w: 1, h: 2 },
+    { id: 10, x: 1, y: 4, w: 1, h: 2 },
+    { id: 11, x: 2, y: 4, w: 1, h: 2 },
+    { id: 12, x: 5, y: 4, w: 1, h: 2 },
+    { id: 13, x: 3, y: 5, w: 2, h: 1 },
+    { id: 14, x: 4, y: 3, w: 2, h: 1 }
+],
+
+//NIVEL 36
+
+"1_0_15":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 1, w: 3, h: 1 },
+    { id: 2, x: 1, y: 2, w: 1, h: 2 },
+    { id: 3, x: 1, y: 4, w: 1, h: 2 },
+    { id: 4, x: 2, y: 3, w: 1, h: 2 },
+    { id: 5, x: 3, y: 0, w: 2, h: 1 },
+    { id: 6, x: 3, y: 3, w: 3, h: 1 },
+    { id: 7, x: 4, y: 1, w: 1, h: 2 },
+    { id: 8, x: 4, y: 4, w: 1, h: 2 },
+    { id: 9, x: 5, y: 0, w: 1, h: 3 }
+    
+],
+
+
+//NIVEL 37
+
+"1_0_16":[
+    { id: 0, x:2 , y:2 , w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x:0 , y: 0, w:3 , h:1  },
+    { id: 2, x: 0, y: 1, w: 2, h: 1 },
+    { id: 3, x: 0, y: 2, w: 1, h:  2},
+    { id: 4, x: 0, y: 4, w: 1, h:  2},
+    { id: 5, x:1 , y:2 , w:1 , h:2  },
+    { id: 6, x: 1, y:4 , w: 1, h:2  },
+    { id: 7, x:3 , y:0 , w:1 , h:2  },
+    { id: 8, x:3 , y: 3, w:2 , h:1  },
+    { id: 9, x: 3, y: 4, w:2 , h:  1},
+    { id: 10, x:3 , y:5 , w:2 , h: 1 },
+    { id: 11, x:4 , y:0 , w:1, h: 3 },
+    { id: 12, x:5 , y:1 , w:1 , h:2  }
+  
+],
+   
+
+//NIVEL 38
+
+"1_0_17":[
+    { id: 0, x:0 , y:2 , w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y:0 , w:2 , h:1  },
+    { id: 2, x: 0, y: 1, w: 2, h:1  },
+    { id: 3, x: 0, y: 3, w: 1, h:3  },
+    { id: 4, x: 2, y:0 , w:2 , h:1  },
+    { id: 5, x: 2, y:5 , w: 2, h:1  },
+    { id: 6, x: 3, y:4 , w:3 , h:1  },
+    { id: 7, x:4 , y:5 , w:2 , h:1  },
+    { id: 8, x:5 , y:0 , w:1 , h: 3 }
+    
+  
+],
+
+
+//NIVEL 39
+
+"1_0_18":[
+    { id: 0, x:0 , y:2 , w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x:0 , y:0 , w:2 , h:1  },
+    { id: 2, x:0 , y:1 , w:2 , h: 1 },
+    { id: 3, x:0 , y:3 , w:1 , h:2  },
+    { id: 4, x:1 , y:3 , w:1 , h:3  },
+    { id: 5, x:2 , y:0 , w:2 , h:1  },
+    { id: 6, x:2 , y:3 , w:3 , h:1  },
+    { id: 7, x:2 , y:4 , w:2 , h:1  },
+    { id: 8, x:2 , y:5 , w:3 , h:1  },
+    { id: 9, x:4 , y:4 , w:2 , h:1  },
+    { id: 10, x:5 , y:0 , w:1 , h:2 },
+    { id: 11, x:5 , y:2 , w:1, h: 2 }
+  
+],
+
+
+//NIVEL 40
+
+"1_0_19":[
+    { id: 0, x:0 , y:2 , w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x:0 , y:3 , w:1 , h:3  },
+    { id: 2, x:1 , y:1 , w:2 , h:1  },
+    { id: 3, x:1 , y:4 , w:2 , h:1  },
+    { id: 4, x:2 , y:2 , w:1 , h:2  },
+    { id: 5, x:2 , y:5 , w:2 , h:1  },
+    { id: 6, x:3 , y:0 , w:1 , h:3  },
+    { id: 7, x:3 , y:4 , w:2 , h:1  }
+  
+],
+
+//NIVEL 41
+
+"1_1_0":[
+    { id: 0, x:0 , y:2 , w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x:0 , y:0 , w:1 , h: 2 },
+    { id: 2, x: 1, y:4 , w:2 , h:1  },
+    { id: 3, x: 2, y:0 , w:1 , h:3  },
+    { id: 4, x:4 , y:1 , w:1 , h:2  },
+    { id: 5, x: 5, y:1 , w:1 , h: 2 }
+    
+  ],
+
+//NIVEL 42
+
+"1_1_1":[
+    { id: 0, x:0 , y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x:0 , y: 0, w:2 , h:1  },
+    { id: 2, x:0 , y: 1, w:2 , h: 1 },
+    { id: 3, x:0 , y:3 , w:3 , h:1  },
+    { id: 4, x:2 , y:0 , w:2 , h:1  },
+    { id: 5, x:2 , y:1 , w:1 , h:2  },
+    { id: 6, x:2 , y:4 , w:2 , h:1  },
+    { id: 7, x:4 , y:4 , w:2 , h:1  },
+    { id: 8, x:5 , y:0 , w:1 , h: 3 }
+    
+],
+
+//NIVEL 43
+
+"1_1_2":[
+    { id: 0, x:1 , y:2 , w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x:0 , y:0 , w:1 , h:3  },
+    { id: 2, x:0 , y:3 , w:3 , h:1  },
+    { id: 3, x:0 , y:5 , w:3 , h:1  },
+    { id: 4, x:1 , y:0 , w:2 , h:1  },
+    { id: 5, x:1 , y:4 , w:3 , h:1  },
+    { id: 6, x:3 , y:0 , w:1 , h:2  },
+    { id: 7, x:3 , y:2 , w: 1, h: 2 },
+    { id: 8, x:4 , y: 1, w:1 , h:2  },
+    { id: 9, x:5 , y:1 , w:1 , h:2  }
+    
+  
+],
+
+//NIVEL 44
+
+"1_1_3":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x:0 , y:1 , w:2 , h:1  },
+    { id: 2, x:0 , y:3 , w:2 , h:1  },
+    { id: 3, x:0 , y:4 , w: 1, h:2  },
+    { id: 4, x:1 , y:4 , w:3 , h:1  },
+    { id: 5, x:2 , y:5 , w:2 , h:1  },
+    { id: 6, x:3 , y:0 , w:1 , h:3  },
+    { id: 7, x:4 , y:1 , w:2 , h:1  },
+    { id: 8, x: 4, y:2 , w:1 , h:2  }
+    
+  
+],
+
+//NIVEL 45
+
+"1_1_4":[
+    { id: 0, x:0 , y:2 , w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x:0 , y:1 , w:2 , h: 1 },
+    { id: 2, x:0 , y:3 , w:1 , h: 2 },
+    { id: 3, x:1 , y:3 , w:1 , h:2  },
+    { id: 4, x: 3, y:4 , w:2 , h:1  },
+    { id: 5, x: 3, y:5 , w:2 , h:1  },
+    { id: 6, x:4 , y:0 , w:1 , h: 3 },
+    { id: 7, x:5 , y:0 , w:1 , h:3  }
+    
+  
+],
+
+//NIVEL 46
+
+"1_1_5":[
+    { id: 0, x: 0, y:2 , w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y:1 , w:2 , h:1  },
+    { id: 2, x: 0, y:3 , w:1 , h:2 },
+    { id: 3, x:1 , y:3 , w:3 , h:1  },
+    { id: 4, x: 1, y:4 , w:1 , h:2  },
+    { id: 5, x:2 , y:0 , w:1 , h: 3 },
+    { id: 6, x:3 , y:0 , w:2 , h: 1 },
+    { id: 7, x:3 , y:1 , w:1 , h: 2 },
+    { id: 8, x:4 , y:1 , w:2 , h: 1 },
+    { id: 9, x:5 , y:2 , w:1 , h: 2 }
+    
+  
+],
+
+//NIVEL 47
+
+"1_1_6":[
+    { id: 0, x:3 , y:2 , w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x:0 , y:0 , w:2 , h:1  },
+    { id: 2, x: 0, y:1 , w:1 , h: 2 },
+    { id: 3, x:0 , y:5 , w:3 , h: 1 },
+    { id: 4, x:1 , y:2 , w:1 , h:3  },
+    { id: 5, x:2 , y:0 , w:1 , h:  3},
+    { id: 6, x:2 , y:3 , w:2 , h: 1 },
+    { id: 7, x:2 , y:4 , w:2 , h: 1 },
+    { id: 8, x:3 , y: 0, w:1 , h:2  },
+    { id: 9, x:4 , y:0 , w:1 , h:2  },
+    { id: 10, x: 4, y:4 , w:2 , h:1  },
+    { id: 11, x:5 , y: 0, w:1, h: 2 },
+    { id: 12, x:5 , y:2 , w: 1, h:2  }
+  
+],
+
+
+//NIVEL 48
+
+"1_1_7":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 2, h: 1 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 1, y: 0, w: 1, h: 2 },
+    { id: 5, x: 1, y: 4, w: 1, h: 2 },
+    { id: 6, x: 2, y: 0, w: 2, h: 1 },
+    { id: 7, x: 2, y: 4, w: 2, h: 1 },
+    { id: 8, x: 2, y: 5, w: 2, h: 1 },
+    { id: 9, x: 4, y: 0, w: 2, h: 1 },
+    { id: 10, x: 4, y: 4, w: 2, h: 1 },
+    { id: 11, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 49
+
+"1_1_8":[
+    { id: 0, x: 3, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 2, h: 1 },
+    { id: 2, x: 0, y: 4, w: 1, h: 2 },
+    { id: 3, x: 1, y: 1, w: 2, h: 1 },
+    { id: 4, x: 2, y: 2, w: 1, h: 3 },
+    { id: 5, x: 2, y: 5, w: 2, h: 1 },
+    { id: 6, x: 3, y: 0, w: 1, h: 2 },
+    { id: 7, x: 3, y: 4, w: 3, h: 1 },
+    { id: 8, x: 4, y: 0, w: 1, h: 2 },
+    { id: 9, x: 4, y: 3, w: 2, h: 1 },
+    { id: 10, x: 4, y: 5, w: 2, h: 1 },
+    { id: 11, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 50
+
+"1_1_9":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 1, h: 2 },
+    { id: 3, x: 1, y: 0, w: 2, h: 1 },
+    { id: 4, x: 1, y: 1, w: 3, h: 1 },
+    { id: 5, x: 1, y: 4, w: 2, h: 1 },
+    { id: 6, x: 2, y: 2, w: 1, h: 2 },
+    { id: 7, x: 3, y: 2, w: 1, h: 3 },
+    { id: 8, x: 4, y: 0, w: 1, h: 2 },
+    { id: 9, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 51
+
+"1_1_10":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 1, w: 2, h: 1 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 2, y: 0, w: 2, h: 1 },
+    { id: 5, x: 2, y: 5, w: 2, h: 1 },
+    { id: 6, x: 3, y: 1, w: 1, h: 2 },
+    { id: 7, x: 3, y: 3, w: 3, h: 1 },
+    { id: 11, x: 3, y: 4, w: 3, h: 1 },
+    { id: 8, x: 4, y: 1, w: 1, h: 2 },
+    { id: 9, x: 4, y: 5, w: 2, h: 1 },
+    { id: 10, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 52
+
+"1_1_11":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 2, h: 1 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 1, y: 0, w: 1, h: 2 },
+    { id: 5, x: 1, y: 4, w: 1, h: 2 },
+    { id: 6, x: 2, y: 0, w: 3, h: 1 },
+    { id: 7, x: 2, y: 2, w: 1, h: 2 },
+    { id: 8, x: 2, y: 4, w: 1, h: 2 },
+    { id: 12, x: 2, y: 1, w: 3, h: 1 },
+    { id: 9, x: 4, y: 3, w: 2, h: 1 },
+    { id: 10, x: 4, y: 5, w: 2, h: 1 },
+    { id: 11, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 53
+
+"1_1_12":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 2, h: 1 },
+    { id: 3, x: 1, y: 0, w: 3, h: 1 },
+    { id: 4, x: 1, y: 4, w: 1, h: 2 },
+    { id: 5, x: 2, y: 1, w: 2, h: 1 },
+    { id: 6, x: 3, y: 2, w: 1, h: 2 },
+    { id: 7, x: 3, y: 4, w: 1, h: 2 },
+    { id: 8, x: 4, y: 3, w: 2, h: 1 },
+    { id: 9, x: 4, y: 4, w: 2, h: 1 },
+    { id: 10, x: 4, y: 5, w: 2, h: 1 }
+],
+
+//NIVEL 54
+
+"1_1_13":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 1, w: 2, h: 1 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 1, y: 3, w: 1, h: 2 },
+    { id: 5, x: 2, y: 1, w: 2, h: 1 },
+    { id: 6, x: 2, y: 3, w: 2, h: 1 },
+    { id: 7, x: 2, y: 4, w: 1, h: 2 },
+    { id: 8, x: 3, y: 0, w: 2, h: 1 },
+    { id: 9, x: 4, y: 1, w: 1, h: 2 },
+    { id: 10, x: 4, y: 3, w: 2, h: 1 },
+    { id: 11, x: 4, y: 4, w: 1, h: 2 },
+    { id: 12, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 55
+
+"1_1_14":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 1, h: 2 },
+    { id: 3, x: 0, y: 3, w: 2, h: 1 },
+    { id: 4, x: 0, y: 4, w: 2, h: 1 },
+    { id: 5, x: 1, y: 1, w: 1, h: 2 },
+    { id: 6, x: 1, y: 5, w: 2, h: 1 },
+    { id: 7, x: 2, y: 0, w: 1, h: 2 },
+    { id: 8, x: 2, y: 3, w: 1, h: 2 },
+    { id: 9, x: 3, y: 1, w: 3, h: 1 },
+    { id: 10, x: 3, y: 3, w: 1, h: 3 },
+    { id: 11, x: 4, y: 0, w: 2, h: 1 },
+    { id: 12, x: 4, y: 2, w: 1, h: 2 },
+    { id: 13, x: 5, y: 2, w: 1, h: 2 },
+    { id: 14, x: 5, y: 4, w: 1, h: 2 }
+],
+
+//NIVEL 56
+
+"1_1_15":[
+    { id: 0, x: 3, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 1, h: 2 },
+    { id: 3, x: 0, y: 3, w: 1, h: 2 },
+    { id: 4, x: 2, y: 0, w: 2, h: 1 },
+    { id: 5, x: 2, y: 1, w: 1, h: 2 },
+    { id: 6, x: 2, y: 3, w: 2, h: 1 },
+    { id: 7, x: 2, y: 4, w: 1, h: 2 },
+    { id: 8, x: 4, y: 3, w: 2, h: 1 },
+    { id: 9, x: 4, y: 4, w: 2, h: 1 },
+    { id: 10, x: 4, y: 5, w: 2, h: 1 },
+    { id: 11, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 57
+
+"1_1_16":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 0, y: 4, w: 3, h: 1 },
+    { id: 4, x: 0, y: 5, w: 2, h: 1 },
+    { id: 5, x: 1, y: 3, w: 2, h: 1 },
+    { id: 6, x: 2, y: 5, w: 2, h: 1 },
+    { id: 7, x: 3, y: 0, w: 1, h: 2 },
+    { id: 8, x: 3, y: 3, w: 2, h: 1 },
+    { id: 9, x: 4, y: 0, w: 2, h: 1 },
+    { id: 10, x: 4, y: 1, w: 1, h: 2 },
+    { id: 11, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 58
+
+"1_1_17":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 1, w: 3, h: 1 },
+    { id: 2, x: 0, y: 3, w: 2, h: 1 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 1, y: 4, w: 3, h: 1 },
+    { id: 5, x: 1, y: 5, w: 3, h: 1 },
+    { id: 6, x: 2, y: 0, w: 3, h: 1 },
+    { id: 7, x: 3, y: 1, w: 1, h: 3 },
+    { id: 8, x: 4, y: 1, w: 1, h: 2 },
+    { id: 9, x: 4, y: 3, w: 1, h: 2 },
+    { id: 10, x: 5, y: 0, w: 1, h: 2 },
+    { id: 11, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 59
+
+"1_1_18":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 1, h: 3 },
+    { id: 2, x: 1, y: 3, w: 1, h: 3 },
+    { id: 3, x: 2, y: 0, w: 1, h: 3 },
+    { id: 4, x: 2, y: 4, w: 3, h: 1 },
+    { id: 5, x: 2, y: 5, w: 2, h: 1 },
+    { id: 6, x: 4, y: 1, w: 2, h: 1 },
+    { id: 7, x: 5, y: 2, w: 1, h: 3 }
+],
+
+//NIVEL 60
+
+"1_1_19":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 1, w: 3, h: 1 },
+    { id: 2, x: 0, y: 5, w: 2, h: 1 },
+    { id: 3, x: 1, y: 3, w: 1, h: 2 },
+    { id: 4, x: 2, y: 2, w: 1, h: 2 },
+    { id: 5, x: 3, y: 1, w: 1, h: 2 },
+    { id: 6, x: 3, y: 3, w: 3, h: 1 },
+    { id: 7, x: 3, y: 4, w: 1, h: 2 },
+    { id: 8, x: 4, y: 1, w: 1, h: 2 },
+    { id: 9, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 61
+
+"1_2_0":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 1, y: 0, w: 3, h: 1 },
+    { id: 3, x: 1, y: 3, w: 3, h: 1 },
+    { id: 4, x: 3, y: 1, w: 1, h: 2 },
+    { id: 5, x: 4, y: 1, w: 1, h: 2 },
+    { id: 6, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 62
+
+"1_2_1":[
+    { id: 0, x: 3, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 3 },
+    { id: 2, x: 0, y: 3, w: 2, h: 1 },
+    { id: 3, x: 1, y: 0, w: 1, h: 2 },
+    { id: 4, x: 1, y: 4, w: 1, h: 2 },
+    { id: 5, x: 2, y: 0, w: 1, h: 3 },
+    { id: 6, x: 2, y: 3, w: 2, h: 1 },
+    { id: 7, x: 3, y: 0, w: 3, h: 1 },
+    { id: 8, x: 3, y: 1, w: 3, h: 1 },
+    { id: 9, x: 3, y: 4, w: 1, h: 2 },
+    { id: 10, x: 4, y: 3, w: 1, h: 2 },
+    { id: 11, x: 5, y: 2, w: 1, h: 2 },
+    { id: 12, x: 5, y: 4, w: 1, h: 2 }
+],
+
+//NIVEL 63
+
+"1_2_2":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 1, y: 0, w: 1, h: 2 },
+    { id: 3, x: 2, y: 1, w: 1, h: 2 },
+    { id: 4, x: 3, y: 1, w: 1, h: 2 },
+    { id: 5, x: 3, y: 5, w: 3, h: 1 },
+    { id: 6, x: 4, y: 0, w: 1, h: 2 },
+    { id: 7, x: 4, y: 2, w: 1, h: 2 },
+    { id: 8, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 64
+
+"1_2_3":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 1, h: 3 },
+    { id: 2, x: 1, y: 0, w: 2, h: 1 },
+    { id: 3, x: 1, y: 3, w: 2, h: 1 },
+    { id: 4, x: 1, y: 4, w: 1, h: 2 },
+    { id: 5, x: 2, y: 1, w: 1, h: 2 },
+    { id: 6, x: 2, y: 4, w: 2, h: 1 },
+    { id: 7, x: 4, y: 4, w: 2, h: 1 },
+    { id: 8, x: 4, y: 5, w: 2, h: 1 },
+    { id: 9, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 65
+
+"1_2_4":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 2, h: 1 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 2, y: 0, w: 3, h: 1 },
+    { id: 5, x: 3, y: 3, w: 2, h: 1 },
+    { id: 6, x: 4, y: 1, w: 1, h: 2 },
+    { id: 7, x: 4, y: 4, w: 2, h: 1 },
+    { id: 8, x: 5, y: 0, w: 1, h: 2 },
+    { id: 9, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 66
+
+"1_2_5":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 0, y: 4, w: 2, h: 1 },
+    { id: 4, x: 1, y: 0, w: 1, h: 2 },
+    { id: 5, x: 2, y: 3, w: 2, h: 1 },
+    { id: 6, x: 2, y: 4, w: 1, h: 2 },
+    { id: 7, x: 3, y: 0, w: 1, h: 3 },
+    { id: 8, x: 3, y: 4, w: 2, h: 1 },
+    { id: 9, x: 3, y: 5, w: 2, h: 1 },
+    { id: 10, x: 4, y: 0, w: 2, h: 1 },
+    { id: 11, x: 4, y: 1, w: 2, h: 1 },
+    { id: 12, x: 4, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 67
+
+"1_2_6":[
+    { id: 0, x: 3, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 4, w: 2, h: 1 },
+    { id: 2, x: 0, y: 5, w: 2, h: 1 },
+    { id: 3, x: 1, y: 3, w: 2, h: 1 },
+    { id: 4, x: 2, y: 0, w: 1, h: 3 },
+    { id: 5, x: 2, y: 4, w: 2, h: 1 },
+    { id: 6, x: 2, y: 5, w: 2, h: 1 },
+    { id: 7, x: 3, y: 0, w: 3, h: 1 },
+    { id: 8, x: 4, y: 3, w: 1, h: 3 },
+    { id: 9, x: 5, y: 1, w: 1, h: 2 },
+    { id: 10, x: 5, y: 3, w: 1, h: 2 }
+],
+
+//NIVEL 68
+
+"1_2_7":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 1, h: 2 },
+    { id: 3, x: 1, y: 1, w: 3, h: 1 },
+    { id: 4, x: 1, y: 3, w: 1, h: 3 },
+    { id: 5, x: 2, y: 2, w: 1, h: 3 },
+    { id: 6, x: 2, y: 5, w: 2, h: 1 },
+    { id: 7, x: 3, y: 3, w: 3, h: 1 },
+    { id: 8, x: 4, y: 0, w: 2, h: 1 },
+    { id: 9, x: 5, y: 1, w: 1, h: 2 },
+    { id: 10, x: 5, y: 4, w: 1, h: 2 }
+],
+
+//NIVEL 69
+
+"1_2_8":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 3 },
+    { id: 2, x: 0, y: 4, w: 2, h: 1 },
+    { id: 3, x: 0, y: 5, w: 2, h: 1 },
+    { id: 4, x: 1, y: 0, w: 1, h: 2 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 2, y: 1, w: 2, h: 1 },
+    { id: 7, x: 2, y: 3, w: 1, h: 3 },
+    { id: 8, x: 3, y: 2, w: 1, h: 2 },
+    { id: 9, x: 3, y: 5, w: 3, h: 1 },
+    { id: 10, x: 4, y: 0, w: 2, h: 1 },
+    { id: 11, x: 4, y: 1, w: 2, h: 1 },
+    { id: 12, x: 4, y: 2, w: 1, h: 2 },
+    { id: 13, x: 5, y: 2, w: 1, h: 2 },
+    { id: 14, x: 5, y: 4, w: 1, h: 2 }
+],
+
+//NIVEL 70
+
+"1_2_9":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 1, w: 2, h: 1 },
+    { id: 2, x: 0, y: 3, w: 1, h: 3 },
+    { id: 3, x: 1, y: 0, w: 2, h: 1 },
+    { id: 4, x: 2, y: 1, w: 2, h: 1 },
+    { id: 5, x: 2, y: 2, w: 1, h: 2 },
+    { id: 6, x: 2, y: 4, w: 1, h: 2 },
+    { id: 7, x: 3, y: 2, w: 1, h: 2 },
+    { id: 8, x: 3, y: 4, w: 2, h: 1 },
+    { id: 9, x: 3, y: 5, w: 3, h: 1 },
+    { id: 10, x: 4, y: 3, w: 2, h: 1 },
+    { id: 11, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 71
+
+"1_2_10":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 5, w: 2, h: 1 },
+    { id: 3, x: 1, y: 0, w: 1, h: 2 },
+    { id: 4, x: 2, y: 0, w: 1, h: 2 },
+    { id: 5, x: 2, y: 2, w: 1, h: 2 },
+    { id: 6, x: 2, y: 5, w: 2, h: 1 },
+    { id: 7, x: 3, y: 0, w: 1, h: 2 },
+    { id: 8, x: 3, y: 2, w: 1, h: 2 },
+    { id: 9, x: 4, y: 1, w: 1, h: 2 },
+    { id: 10, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 72
+
+"1_2_11":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 1, w: 2, h: 1 },
+    { id: 2, x: 0, y: 5, w: 2, h: 1 },
+    { id: 3, x: 1, y: 0, w: 2, h: 1 },
+    { id: 4, x: 1, y: 2, w: 1, h: 3 },
+    { id: 5, x: 2, y: 1, w: 2, h: 1 },
+    { id: 6, x: 2, y: 3, w: 1, h: 2 },
+    { id: 7, x: 3, y: 0, w: 2, h: 1 },
+    { id: 8, x: 3, y: 3, w: 1, h: 3 },
+    { id: 9, x: 4, y: 1, w: 1, h: 2 },
+    { id: 10, x: 4, y: 3, w: 2, h: 1 },
+    { id: 11, x: 4, y: 4, w: 1, h: 2 },
+    { id: 12, x: 5, y: 1, w: 1, h: 2 },
+    { id: 13, x: 5, y: 4, w: 1, h: 2 }
+],
+
+//NIVEL 73
+
+"1_2_12":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 1, h: 2 },
+    { id: 3, x: 0, y: 3, w: 1, h: 2 },
+    { id: 4, x: 0, y: 5, w: 2, h: 1 },
+    { id: 5, x: 2, y: 0, w: 1, h: 2 },
+    { id: 6, x: 2, y: 3, w: 2, h: 1 },
+    { id: 7, x: 2, y: 4, w: 1, h: 2 },
+    { id: 8, x: 3, y: 0, w: 2, h: 1 },
+    { id: 9, x: 3, y: 1, w: 1, h: 2 },
+    { id: 10, x: 3, y: 5, w: 2, h: 1 },
+    { id: 11, x: 4, y: 1, w: 2, h: 1 },
+    { id: 12, x: 4, y: 4, w: 2, h: 1 },
+    { id: 13, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 74
+
+"1_2_13":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 3 },
+    { id: 2, x: 0, y: 5, w: 2, h: 1 },
+    { id: 3, x: 1, y: 0, w: 1, h: 2 },
+    { id: 4, x: 1, y: 3, w: 1, h: 2 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 2, y: 1, w: 2, h: 1 },
+    { id: 7, x: 2, y: 3, w: 1, h: 2 },
+    { id: 8, x: 2, y: 5, w: 2, h: 1 },
+    { id: 9, x: 3, y: 3, w: 3, h: 1 },
+    { id: 10, x: 4, y: 0, w: 2, h: 1 },
+    { id: 11, x: 4, y: 1, w: 1, h: 2 },
+    { id: 12, x: 4, y: 4, w: 1, h: 2 },
+    { id: 13, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 75
+
+"1_2_14":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 0, y: 5, w: 2, h: 1 },
+    { id: 4, x: 2, y: 3, w: 1, h: 2 },
+    { id: 5, x: 2, y: 5, w: 2, h: 1 },
+    { id: 6, x: 3, y: 4, w: 3, h: 1 },
+    { id: 7, x: 4, y: 0, w: 1, h: 2 },
+    { id: 8, x: 4, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 76
+
+"1_2_15":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 2, h: 1 },
+    { id: 2, x: 0, y: 4, w: 1, h: 2 },
+    { id: 3, x: 1, y: 0, w: 1, h: 2 },
+    { id: 4, x: 1, y: 4, w: 2, h: 1 },
+    { id: 5, x: 2, y: 0, w: 3, h: 1 },
+    { id: 6, x: 2, y: 1, w: 2, h: 1 },
+    { id: 7, x: 2, y: 2, w: 1, h: 2 },
+    { id: 8, x: 3, y: 2, w: 1, h: 3 },
+    { id: 9, x: 4, y: 3, w: 2, h: 1 },
+    { id: 10, x: 4, y: 4, w: 2, h: 1 }
+],
+
+//NIVEL 77
+
+"1_2_16":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 3, h: 1 },
+    { id: 3, x: 0, y: 3, w: 1, h: 2 },
+    { id: 4, x: 0, y: 5, w: 3, h: 1 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 2, y: 2, w: 1, h: 3 },
+    { id: 7, x: 3, y: 1, w: 1, h: 2 },
+    { id: 8, x: 4, y: 1, w: 1, h: 2 },
+    { id: 9, x: 5, y: 3, w: 1, h: 3 }
+],
+
+//NIVEL 78
+
+"1_2_17":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 3, h: 1 },
+    { id: 3, x: 1, y: 3, w: 3, h: 1 },
+    { id: 4, x: 1, y: 5, w: 3, h: 1 },
+    { id: 5, x: 3, y: 0, w: 1, h: 3 },
+    { id: 6, x: 4, y: 0, w: 2, h: 1 },
+    { id: 7, x: 5, y: 1, w: 1, h: 3 }
+],
+
+//NIVEL 79
+
+"1_2_18":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 3, h: 1 },
+    { id: 3, x: 1, y: 4, w: 1, h: 2 },
+    { id: 4, x: 3, y: 0, w: 2, h: 1 },
+    { id: 5, x: 3, y: 1, w: 2, h: 1 },
+    { id: 6, x: 3, y: 4, w: 3, h: 1 },
+    { id: 7, x: 4, y: 2, w: 1, h: 2 },
+    { id: 8, x: 5, y: 0, w: 1, h: 2 },
+    { id: 9, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 80
+
+"1_2_19":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 1, y: 0, w: 1, h: 2 },
+    { id: 4, x: 1, y: 3, w: 3, h: 1 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 4, y: 0, w: 2, h: 1 },
+    { id: 7, x: 4, y: 1, w: 1, h: 2 },
+    { id: 8, x: 4, y: 3, w: 1, h: 2 }
+],
+
+//NIVEL 81
+
+"2_0_0":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 3, h: 1 },
+    { id: 2, x: 0, y: 3, w: 1, h: 3 },
+    { id: 3, x: 1, y: 5, w: 2, h: 1 },
+    { id: 4, x: 2, y: 1, w: 1, h: 2 },
+    { id: 5, x: 2, y: 3, w: 1, h: 2 },
+    { id: 6, x: 4, y: 4, w: 2, h: 1 },
+    { id: 7, x: 5, y: 0, w: 1, h: 2 },
+    { id: 8, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 82
+
+"2_0_1":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 1, h: 2 },
+    { id: 2, x: 1, y: 3, w: 3, h: 1 },
+    { id: 3, x: 3, y: 1, w: 1, h: 2 },
+    { id: 4, x: 3, y: 4, w: 1, h: 2 },
+    { id: 5, x: 4, y: 0, w: 1, h: 3 },
+    { id: 6, x: 4, y: 4, w: 2, h: 1 },
+    { id: 7, x: 5, y: 0, w: 1, h: 2 },
+    { id: 8, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 83
+
+"2_0_2":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 1, y: 5, w: 3, h: 1 },
+    { id: 2, x: 2, y: 1, w: 1, h: 2 },
+    { id: 3, x: 3, y: 0, w: 1, h: 3 },
+    { id: 4, x: 4, y: 1, w: 1, h: 2 },
+    { id: 5, x: 5, y: 0, w: 1, h: 2 },
+    { id: 6, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 84
+
+"2_0_3":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 1, h: 3 },
+    { id: 2, x: 1, y: 0, w: 1, h: 2 },
+    { id: 3, x: 1, y: 3, w: 2, h: 1 },
+    { id: 4, x: 1, y: 5, w: 3, h: 1 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 2, y: 1, w: 2, h: 1 },
+    { id: 7, x: 3, y: 2, w: 1, h: 3 },
+    { id: 8, x: 4, y: 0, w: 2, h: 1 },
+    { id: 9, x: 4, y: 3, w: 2, h: 1 },
+    { id: 10, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 85
+
+"2_0_4":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 3, h: 1 },
+    { id: 3, x: 0, y: 2, w: 1, h: 2 },
+    { id: 4, x: 0, y: 4, w: 1, h: 2 },
+    { id: 5, x: 1, y: 3, w: 1, h: 3 },
+    { id: 6, x: 2, y: 0, w: 2, h: 1 },
+    { id: 7, x: 2, y: 3, w: 1, h: 2 },
+    { id: 8, x: 3, y: 3, w: 2, h: 1 },
+    { id: 9, x: 4, y: 0, w: 1, h: 3 },
+    { id: 10, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 86
+
+"2_0_5":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 4, w: 2, h: 1 },
+    { id: 2, x: 1, y: 0, w: 1, h: 2 },
+    { id: 3, x: 1, y: 2, w: 1, h: 2 },
+    { id: 4, x: 2, y: 1, w: 2, h: 1 },
+    { id: 5, x: 3, y: 4, w: 1, h: 2 },
+    { id: 6, x: 4, y: 1, w: 2, h: 1 },
+    { id: 7, x: 4, y: 2, w: 1, h: 3 },
+    { id: 8, x: 4, y: 5, w: 2, h: 1 },
+    { id: 9, x: 5, y: 2, w: 1, h: 3 }
+],
+
+//NIVEL 87
+
+"2_0_6":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 3, h: 1 },
+    { id: 3, x: 0, y: 3, w: 2, h: 1 },
+    { id: 4, x: 1, y: 4, w: 1, h: 2 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 2, y: 2, w: 1, h: 2 },
+    { id: 7, x: 3, y: 1, w: 1, h: 2 },
+    { id: 8, x: 3, y: 3, w: 2, h: 1 },
+    { id: 9, x: 4, y: 0, w: 1, h: 3 },
+    { id: 10, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 88
+
+"2_0_7":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 3, h: 1 },
+    { id: 2, x: 0, y: 1, w: 1, h: 2 },
+    { id: 3, x: 1, y: 1, w: 1, h: 2 },
+    { id: 4, x: 1, y: 3, w: 1, h: 2 },
+    { id: 5, x: 2, y: 1, w: 2, h: 1 },
+    { id: 6, x: 2, y: 4, w: 2, h: 1 },
+    { id: 7, x: 4, y: 1, w: 2, h: 1 },
+    { id: 8, x: 4, y: 2, w: 1, h: 2 },
+    { id: 9, x: 4, y: 4, w: 2, h: 1 }
+],
+
+//NIVEL 89
+
+"2_0_8":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 3, h: 1 },
+    { id: 2, x: 0, y: 4, w: 2, h: 1 },
+    { id: 3, x: 0, y: 5, w: 2, h: 1 },
+    { id: 4, x: 2, y: 4, w: 1, h: 2 },
+    { id: 5, x: 3, y: 4, w: 2, h: 1 },
+    { id: 6, x: 3, y: 5, w: 2, h: 1 },
+    { id: 7, x: 4, y: 1, w: 1, h: 3 }
+],
+
+//NIVEL 90
+
+"2_0_9":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 1, h: 2 },
+    { id: 2, x: 1, y: 0, w: 2, h: 1 },
+    { id: 3, x: 1, y: 1, w: 2, h: 1 },
+    { id: 4, x: 1, y: 3, w: 1, h: 2 },
+    { id: 5, x: 2, y: 2, w: 1, h: 2 },
+    { id: 6, x: 2, y: 4, w: 1, h: 2 },
+    { id: 7, x: 3, y: 0, w: 2, h: 1 },
+    { id: 8, x: 3, y: 1, w: 2, h: 1 },
+    { id: 9, x: 3, y: 2, w: 1, h: 2 },
+    { id: 10, x: 3, y: 4, w: 1, h: 2 },
+    { id: 11, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 91
+
+"2_0_10":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 1, h: 3 },
+    { id: 2, x: 1, y: 0, w: 2, h: 1 },
+    { id: 3, x: 1, y: 3, w: 2, h: 1 },
+    { id: 4, x: 1, y: 4, w: 2, h: 1 },
+    { id: 5, x: 2, y: 1, w: 1, h: 2 },
+    { id: 6, x: 3, y: 1, w: 3, h: 1 },
+    { id: 7, x: 3, y: 4, w: 2, h: 1 },
+    { id: 8, x: 4, y: 2, w: 1, h: 2 },
+    { id: 9, x: 5, y: 2, w: 1, h: 3 }
+],
+
+//NIVEL 92
+
+"2_0_11":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 1, h: 2 },
+    { id: 3, x: 1, y: 1, w: 2, h: 1 },
+    { id: 4, x: 1, y: 3, w: 1, h: 3 },
+    { id: 5, x: 2, y: 2, w: 1, h: 2 },
+    { id: 6, x: 2, y: 4, w: 2, h: 1 },
+    { id: 7, x: 3, y: 1, w: 1, h: 2 },
+    { id: 8, x: 3, y: 3, w: 3, h: 1 },
+    { id: 9, x: 4, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 93
+
+"2_0_12":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 5, w: 3, h: 1 },
+    { id: 3, x: 1, y: 0, w: 2, h: 1 },
+    { id: 4, x: 1, y: 4, w: 2, h: 1 },
+    { id: 5, x: 2, y: 1, w: 1, h: 3 },
+    { id: 6, x: 3, y: 1, w: 2, h: 1 },
+    { id: 7, x: 3, y: 2, w: 1, h: 2 },
+    { id: 8, x: 3, y: 4, w: 2, h: 1 },
+    { id: 9, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 94
+
+"2_0_13":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 3, h: 1 },
+    { id: 2, x: 1, y: 1, w: 2, h: 1 },
+    { id: 3, x: 1, y: 3, w: 3, h: 1 },
+    { id: 4, x: 2, y: 4, w: 2, h: 1 },
+    { id: 5, x: 3, y: 0, w: 1, h: 3 },
+    { id: 6, x: 4, y: 1, w: 2, h: 1 },
+    { id: 7, x: 4, y: 2, w: 1, h: 2 },
+    { id: 8, x: 4, y: 4, w: 1, h: 2 },
+    { id: 9, x: 5, y: 2, w: 1, h: 3 }
+],
+
+//NIVEL 95
+
+"2_0_14":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 3, h: 1 },
+    { id: 3, x: 0, y: 3, w: 2, h: 1 },
+    { id: 4, x: 0, y: 4, w: 1, h: 2 },
+    { id: 5, x: 1, y: 4, w: 1, h: 2 },
+    { id: 6, x: 2, y: 0, w: 2, h: 1 },
+    { id: 7, x: 2, y: 2, w: 1, h: 2 },
+    { id: 8, x: 2, y: 4, w: 1, h: 2 },
+    { id: 9, x: 3, y: 1, w: 1, h: 2 },
+    { id: 10, x: 3, y: 3, w: 2, h: 1 },
+    { id: 11, x: 3, y: 4, w: 2, h: 1 }
+],
+
+//NIVEL 96
+
+"2_0_15":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 3, w: 1, h: 3 },
+    { id: 3, x: 1, y: 3, w: 2, h: 1 },
+    { id: 4, x: 1, y: 4, w: 1, h: 2 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 2, y: 1, w: 2, h: 1 },
+    { id: 7, x: 2, y: 5, w: 3, h: 1 },
+    { id: 8, x: 3, y: 2, w: 1, h: 3 }
+],
+
+//NIVEL 97
+
+"2_0_16":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 1, h: 2 },
+    { id: 3, x: 0, y: 3, w: 1, h: 2 },
+    { id: 4, x: 1, y: 3, w: 1, h: 2 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 2, y: 1, w: 2, h: 1 },
+    { id: 7, x: 3, y: 2, w: 1, h: 2 },
+    { id: 8, x: 3, y: 4, w: 1, h: 2 },
+    { id: 9, x: 4, y: 0, w: 1, h: 3 },
+    { id: 10, x: 4, y: 3, w: 2, h: 1 },
+    { id: 11, x: 5, y: 0, w: 1, h: 2 }
+],
+
+//NIVEL 98
+
+"2_0_17":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 1, h: 3 },
+    { id: 2, x: 1, y: 0, w: 1, h: 2 },
+    { id: 3, x: 1, y: 3, w: 2, h: 1 },
+    { id: 4, x: 2, y: 0, w: 2, h: 1 },
+    { id: 5, x: 3, y: 1, w: 1, h: 2 },
+    { id: 6, x: 3, y: 3, w: 1, h: 2 },
+    { id: 7, x: 4, y: 0, w: 1, h: 2 },
+    { id: 8, x: 4, y: 3, w: 2, h: 1 },
+    { id: 9, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 99
+
+"2_0_18":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 2, y: 3, w: 1, h: 2 },
+    { id: 4, x: 3, y: 0, w: 1, h: 2 },
+    { id: 5, x: 3, y: 2, w: 1, h: 2 },
+    { id: 6, x: 3, y: 4, w: 3, h: 1 },
+    { id: 7, x: 4, y: 0, w: 2, h: 1 },
+    { id: 8, x: 4, y: 1, w: 2, h: 1 },
+    { id: 9, x: 4, y: 2, w: 1, h: 2 },
+    { id: 10, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 100
+
+"2_0_19":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 2, h: 1 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 1, y: 0, w: 1, h: 2 },
+    { id: 5, x: 1, y: 4, w: 3, h: 1 },
+    { id: 6, x: 3, y: 0, w: 1, h: 2 },
+    { id: 7, x: 3, y: 2, w: 1, h: 2 },
+    { id: 8, x: 4, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 101
+
+"2_0_20":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 3, h: 1 },
+    { id: 3, x: 0, y: 2, w: 1, h: 2 },
+    { id: 4, x: 1, y: 2, w: 1, h: 2 },
+    { id: 5, x: 1, y: 4, w: 1, h: 2 },
+    { id: 6, x: 2, y: 0, w: 2, h: 1 },
+    { id: 7, x: 2, y: 3, w: 2, h: 1 },
+    { id: 8, x: 3, y: 5, w: 3, h: 1 },
+    { id: 9, x: 4, y: 3, w: 2, h: 1 },
+    { id: 10, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 102
+
+"2_0_21":[
+    { id: 0, x: 2, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 2, h: 1 },
+    { id: 2, x: 1, y: 0, w: 1, h: 3 },
+    { id: 3, x: 2, y: 0, w: 2, h: 1 },
+    { id: 4, x: 2, y: 3, w: 2, h: 1 },
+    { id: 5, x: 3, y: 1, w: 3, h: 1 },
+    { id: 6, x: 4, y: 0, w: 2, h: 1 },
+    { id: 7, x: 5, y: 2, w: 1, h: 2 },
+    { id: 8, x: 5, y: 4, w: 1, h: 2 }
+],
+
+//NIVEL 103
+
+"2_0_22":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 3 },
+    { id: 2, x: 0, y: 4, w: 2, h: 1 },
+    { id: 3, x: 0, y: 5, w: 2, h: 1 },
+    { id: 4, x: 1, y: 0, w: 1, h: 2 },
+    { id: 5, x: 2, y: 3, w: 1, h: 2 },
+    { id: 6, x: 2, y: 5, w: 2, h: 1 },
+    { id: 7, x: 3, y: 0, w: 1, h: 3 },
+    { id: 8, x: 4, y: 1, w: 2, h: 1 },
+    { id: 9, x: 4, y: 2, w: 1, h: 2 },
+    { id: 10, x: 4, y: 4, w: 1, h: 2 },
+    { id: 11, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 104
+
+"2_0_23":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 2, h: 1 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 1, y: 0, w: 3, h: 1 },
+    { id: 5, x: 2, y: 1, w: 2, h: 1 },
+    { id: 6, x: 2, y: 2, w: 1, h: 2 },
+    { id: 7, x: 3, y: 2, w: 1, h: 2 },
+    { id: 8, x: 3, y: 4, w: 1, h: 2 },
+    { id: 9, x: 4, y: 1, w: 2, h: 1 },
+    { id: 10, x: 4, y: 3, w: 2, h: 1 },
+    { id: 11, x: 4, y: 4, w: 1, h: 2 },
+    { id: 12, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 105
+
+"2_0_24":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 3 },
+    { id: 2, x: 0, y: 4, w: 2, h: 1 },
+    { id: 3, x: 0, y: 5, w: 3, h: 1 },
+    { id: 4, x: 1, y: 0, w: 1, h: 2 },
+    { id: 5, x: 2, y: 0, w: 3, h: 1 },
+    { id: 6, x: 2, y: 1, w: 3, h: 1 },
+    { id: 7, x: 2, y: 3, w: 1, h: 2 },
+    { id: 8, x: 4, y: 2, w: 1, h: 2 },
+    { id: 9, x: 4, y: 4, w: 1, h: 2 },
+    { id: 10, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 106
+
+"2_0_25":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 1, h: 2 },
+    { id: 3, x: 0, y: 5, w: 2, h: 1 },
+    { id: 4, x: 1, y: 0, w: 3, h: 1 },
+    { id: 5, x: 1, y: 3, w: 1, h: 2 },
+    { id: 6, x: 2, y: 5, w: 2, h: 1 },
+    { id: 7, x: 3, y: 1, w: 1, h: 2 },
+    { id: 8, x: 3, y: 3, w: 1, h: 2 },
+    { id: 9, x: 4, y: 0, w: 1, h: 3 },
+    { id: 10, x: 4, y: 3, w: 2, h: 1 },
+    { id: 11, x: 5, y: 0, w: 1, h: 2 }
+],
+
+//NIVEL 107
+
+"2_0_26":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 1, w: 2, h: 1 },
+    { id: 2, x: 0, y: 3, w: 1, h: 3 },
+    { id: 3, x: 1, y: 0, w: 2, h: 1 },
+    { id: 4, x: 1, y: 3, w: 1, h: 2 },
+    { id: 5, x: 1, y: 5, w: 3, h: 1 },
+    { id: 6, x: 2, y: 1, w: 2, h: 1 },
+    { id: 7, x: 2, y: 3, w: 2, h: 1 },
+    { id: 8, x: 3, y: 0, w: 2, h: 1 },
+    { id: 9, x: 4, y: 1, w: 1, h: 2 },
+    { id: 10, x: 4, y: 3, w: 2, h: 1 },
+    { id: 11, x: 4, y: 4, w: 2, h: 1 },
+    { id: 12, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 108
+
+"2_0_27":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 3, h: 1 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 1, y: 0, w: 3, h: 1 },
+    { id: 5, x: 2, y: 1, w: 1, h: 2 },
+    { id: 6, x: 3, y: 4, w: 3, h: 1 },
+    { id: 7, x: 4, y: 1, w: 2, h: 1 },
+    { id: 8, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 109
+
+"2_0_28":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 1, h: 2 },
+    { id: 3, x: 1, y: 0, w: 3, h: 1 },
+    { id: 4, x: 1, y: 1, w: 2, h: 1 },
+    { id: 5, x: 1, y: 3, w: 3, h: 1 },
+    { id: 6, x: 1, y: 4, w: 1, h: 2 },
+    { id: 7, x: 2, y: 5, w: 2, h: 1 },
+    { id: 8, x: 3, y: 1, w: 1, h: 2 },
+    { id: 9, x: 4, y: 1, w: 2, h: 1 },
+    { id: 10, x: 4, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 110
+
+"2_0_29":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 3, w: 3, h: 1 },
+    { id: 3, x: 0, y: 4, w: 1, h: 2 },
+    { id: 4, x: 1, y: 4, w: 1, h: 2 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 2, y: 1, w: 1, h: 2 },
+    { id: 7, x: 2, y: 4, w: 1, h: 2 },
+    { id: 8, x: 3, y: 1, w: 3, h: 1 },
+    { id: 9, x: 3, y: 2, w: 1, h: 3 },
+    { id: 10, x: 4, y: 2, w: 1, h: 3 },
+    { id: 11, x: 5, y: 2, w: 1, h: 2 }
+],
+
+//NIVEL 111
+
+"2_1_0":[
+    { id: 0, x: 1, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 2, w: 1, h: 2 },
+    { id: 3, x: 0, y: 4, w: 2, h: 1 },
+    { id: 4, x: 0, y: 5, w: 2, h: 1 },
+    { id: 5, x: 1, y: 0, w: 1, h: 2 },
+    { id: 6, x: 2, y: 0, w: 1, h: 2 },
+    { id: 7, x: 2, y: 3, w: 2, h: 1 },
+    { id: 8, x: 2, y: 4, w: 1, h: 2 },
+    { id: 9, x: 3, y: 0, w: 1, h: 3 },
+    { id: 10, x: 4, y: 0, w: 2, h: 1 },
+    { id: 11, x: 4, y: 1, w: 2, h: 1 },
+    { id: 12, x: 4, y: 2, w: 1, h: 3 },
+    { id: 13, x: 5, y: 2, w: 1, h: 2 },
+    { id: 14, x: 5, y: 4, w: 1, h: 2 }
+],
+
+//NIVEL 112
+
+"2_1_1":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 3, w: 3, h: 1 },
+    { id: 2, x: 1, y: 0, w: 2, h: 1 },
+    { id: 3, x: 3, y: 0, w: 2, h: 1 },
+    { id: 4, x: 3, y: 5, w: 3, h: 1 },
+    { id: 5, x: 4, y: 1, w: 1, h: 2 },
+    { id: 6, x: 4, y: 3, w: 1, h: 2 },
+    { id: 7, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 113
+
+"2_1_2":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 1, y: 3, w: 2, h: 1 },
+    { id: 2, x: 1, y: 5, w: 2, h: 1 },
+    { id: 3, x: 2, y: 0, w: 1, h: 3 },
+    { id: 4, x: 3, y: 1, w: 1, h: 2 },
+    { id: 5, x: 4, y: 0, w: 1, h: 2 },
+    { id: 6, x: 4, y: 2, w: 1, h: 2 },
+    { id: 7, x: 5, y: 0, w: 1, h: 3 }
+],
+
+//NIVEL 114
+
+"2_1_3":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 5, w: 2, h: 1 },
+    { id: 3, x: 1, y: 0, w: 1, h: 2 },
+    { id: 4, x: 1, y: 3, w: 1, h: 2 },
+    { id: 5, x: 2, y: 0, w: 2, h: 1 },
+    { id: 6, x: 2, y: 1, w: 3, h: 1 },
+    { id: 7, x: 2, y: 2, w: 1, h: 2 },
+    { id: 8, x: 2, y: 4, w: 1, h: 2 },
+    { id: 9, x: 3, y: 2, w: 1, h: 2 },
+    { id: 10, x: 3, y: 5, w: 2, h: 1 }
+],
+
+//NIVEL 115
+
+"2_1_4":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 1, h: 2 },
+    { id: 2, x: 0, y: 3, w: 1, h: 2 },
+    { id: 3, x: 1, y: 0, w: 1, h: 2 },
+    { id: 4, x: 2, y: 0, w: 2, h: 1 },
+    { id: 5, x: 2, y: 1, w: 2, h: 1 },
+    { id: 6, x: 2, y: 3, w: 2, h: 1 },
+    { id: 7, x: 4, y: 0, w: 2, h: 1 },
+    { id: 8, x: 4, y: 3, w: 2, h: 1 },
+    { id: 9, x: 4, y: 4, w: 2, h: 1 },
+    { id: 10, x: 5, y: 1, w: 1, h: 2 }
+],
+
+//NIVEL 116
+
+"2_1_5":[
+    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true }, // Ficha roja
+    { id: 1, x: 0, y: 0, w: 2, h: 1 },
+    { id: 2, x: 0, y: 1, w: 2, h: 1 },
+    { id: 3, x: 0, y: 3, w: 1, h: 3 },
+    { id: 4, x: 1, y: 3, w: 3, h: 1 },
+    { id: 5, x: 2, y: 0, w: 1, h: 3 },
+    { id: 6, x: 3, y: 0, w: 2, h: 1 },
+    { id: 7, x: 3, y: 1, w: 1, h: 2 },
+    { id: 8, x: 3, y: 4, w: 1, h: 2 }
+]
+
+
+
+
+
+
+
+        };
+
+        function generateWorld(u, g, w) {
+            const key = `${u}_${g}_${w}`;
+            let levelBlocks;
+            
+            if (PREDEFINED_WORLDS[key]) {
+                levelBlocks = cloneState(PREDEFINED_WORLDS[key]);
+            } else {
+                levelBlocks = [
+                    { id: 0, x: 0, y: 2, w: 2, h: 1, isShip: true },
+                    { id: 1, x: 3, y: 1, w: 1, h: 3 }
+                ];
+            }
+
+            const solution = solveBFS(levelBlocks, 15000);
+            currentLevelMinMoves = solution ? solution.length : 15;
+            currentLevelInitialState = cloneState(levelBlocks);
+            
+            return levelBlocks;
+        }
+
+        const boardWrapper = document.getElementById('board-wrapper');
+        const blocksContainer = document.getElementById('blocks-container');
+        const gridEl = document.getElementById('grid');
+        
+        gridEl.innerHTML = ''; 
+        for(let i=0; i < COLS * ROWS; i++) {
+            const cell = document.createElement('div'); cell.className = 'grid-cell'; gridEl.appendChild(cell);
+        }
+
+        let blocks = [];
+        let isDragging = false;
+        let activeBlock = null;
+        let startPos = {x: 0, y: 0}, startCoords = {x: 0, y: 0};
+        let cellW = 0, cellH = 0, minDragBound = 0, maxDragBound = 0;
+        let movesCount = 0;
+
+        function renderBlocks() {
+            blocksContainer.innerHTML = '';
+            document.querySelectorAll('.hint-highlight').forEach(el => el.classList.remove('hint-highlight'));
+            
+            blocks.forEach(b => {
+                const el = document.createElement('div');
+                el.className = `block ${b.isShip ? 'ship' : 'asteroid'}`;
+                el.id = 'block-' + b.id;
+                el.style.width = (b.w * 100 / COLS) + '%';
+                el.style.height = (b.h * 100 / ROWS) + '%';
+                
+                const inner = document.createElement('div');
+                inner.className = 'block-inner';
+                
+                if(b.isShip) {
+                    const token = document.createElement('div');
+                    token.className = 'css-golden-token';
+                    token.innerHTML = `<span class="css-golden-token-icon">🚀</span>`;
+                    inner.appendChild(token);
+                } else {
+                    if (playerData.equippedSkin && playerData.equippedSkin !== 'default_skin') {
+                        const currentSkin = SKINS.find(s => s.id === playerData.equippedSkin);
+                        if (currentSkin) {
+                            const img = document.createElement('img');
+                            img.src = currentSkin.img;
+                            img.style.width = '100%';
+                            img.style.height = '100%';
+                            img.style.objectFit = 'cover';
+                            img.style.borderRadius = '4px';
+                            inner.appendChild(img);
+                            
+                            inner.style.background = 'transparent';
+                            inner.style.border = 'none';
+                        }
+                    }
+                }
+                
+                el.appendChild(inner);
+                updateBlockDOM(el, b);
+                blocksContainer.appendChild(el);
+                el.addEventListener('pointerdown', (e) => startDrag(e, b, el));
+            });
+        }
+
+        function loadWorld(u, g, w) {
+            blocksContainer.style.overflow = 'hidden';
+            blocks = cloneState(generateWorld(u, g, w));
+            movesCount = 0;
+            destructionMode = false;
+            document.getElementById('board-wrapper').classList.remove('destruction-mode');
+            document.getElementById('moves-display').innerText = `Mov: ${movesCount}`;
+            document.getElementById('level-display').innerText = `M${getGlobalWorldNumber(u, g, w)}`;
+            renderBlocks();
+        }
+
+        function restartLevel() {
+            if (movesCount === 0 && !destructionMode) return; 
+            blocks = cloneState(currentLevelInitialState);
+            movesCount = 0;
+            destructionMode = false;
+            document.getElementById('board-wrapper').classList.remove('destruction-mode');
+            document.getElementById('moves-display').innerText = `Mov: 0`;
+            renderBlocks();
+            playSound('move');
+        }
+
+        function updateBlockDOM(el, b) { el.style.transform = `translate(${b.x * 100 / b.w}%, ${b.y * 100 / b.h}%)`; }
+
+        function startDrag(e, blockData, el) {
+            if(isDragging) return;
+            
+            if (destructionMode) {
+                if (!blockData.isShip) {
+                    blocks = blocks.filter(b => b.id !== blockData.id);
+                    playerData.destructors--;
+                    saveData();
+                    destructionMode = false;
+                    document.getElementById('board-wrapper').classList.remove('destruction-mode');
+                    renderBlocks();
+                    playSound('destroy');
+                    progressMission('use_destructor', 1);
+                } else {
+                    el.style.transform = `translate(${blockData.x * 100 / blockData.w}%, ${blockData.y * 100 / blockData.h}%) scale(0.9)`;
+                    setTimeout(() => updateBlockDOM(el, blockData), 150);
+                }
+                return;
+            }
+
+            isDragging = true;
+            activeBlock = { data: blockData, el: el };
+            el.classList.add('dragging');
+            el.classList.remove('hint-highlight'); 
+            
+            cellW = boardWrapper.clientWidth / COLS;
+            cellH = boardWrapper.clientHeight / ROWS;
+            
+            startPos = { x: e.clientX, y: e.clientY };
+            startCoords = { x: blockData.x, y: blockData.y };
+            
+            let allMoves = getValidMoves(blocks);
+            let myMoves = allMoves.filter(m => m.id === blockData.id);
+            let isHoriz = blockData.w > blockData.h;
+            
+            minDragBound = blockData.x; maxDragBound = blockData.x;
+            if(!isHoriz) { minDragBound = blockData.y; maxDragBound = blockData.y; }
+            
+            myMoves.forEach(m => {
+                minDragBound = Math.min(minDragBound, m.target);
+                maxDragBound = Math.max(maxDragBound, m.target);
+            });
+            
+            document.addEventListener('pointermove', onDrag);
+            document.addEventListener('pointerup', endDrag);
+            el.setPointerCapture(e.pointerId);
+        }
+
+        function onDrag(e) {
+            if(!isDragging || !activeBlock) return;
+            e.preventDefault();
+            const bd = activeBlock.data;
+            const isHoriz = bd.w > bd.h;
+
+            if (isHoriz) {
+                let targetX = startCoords.x + ((e.clientX - startPos.x) / cellW);
+                bd.x = Math.max(minDragBound, Math.min(targetX, maxDragBound));
+            } else {
+                let targetY = startCoords.y + ((e.clientY - startPos.y) / cellH);
+                bd.y = Math.max(minDragBound, Math.min(targetY, maxDragBound));
+            }
+            updateBlockDOM(activeBlock.el, bd);
+        }
+
+        function endDrag(e) {
+            if(!isDragging) return;
+            const bd = activeBlock.data;
+            bd.x = Math.round(bd.x); bd.y = Math.round(bd.y);
+            updateBlockDOM(activeBlock.el, bd);
+            
+            activeBlock.el.classList.remove('dragging');
+            
+            if (bd.x !== startCoords.x || bd.y !== startCoords.y) {
+                movesCount++;
+                document.getElementById('moves-display').innerText = `Mov: ${movesCount}`;
+                playSound('move');
+                progressMission('make_moves', 1);
+                document.querySelectorAll('.hint-highlight').forEach(el => el.classList.remove('hint-highlight')); 
+            }
+
+            document.removeEventListener('pointermove', onDrag);
+            document.removeEventListener('pointerup', endDrag);
+            isDragging = false;
+            
+            if (bd.isShip && bd.x === COLS - bd.w) {
+                blocksContainer.style.overflow = 'visible';
+                setTimeout(winWorld, 200);
+            }
+            activeBlock = null;
+        }
+
+        function winWorld() {
+            playSound('win');
+            
+            let maxCoins = 20 + (currentU * 15) + (currentG * 5);
+            let extraMoves = Math.max(0, movesCount - currentLevelMinMoves);
+            let penalization = extraMoves * 3; 
+            let coinsEarned = Math.max(0, maxCoins - penalization);
+            
+            if (coinsEarned > 0) {
+                playerData.coins += coinsEarned;
+                progressMission('earn_coins', coinsEarned);
+            }
+            
+            // Sincronización de misiones superadas al finalizar el nivel
+            progressMission('win_level', 1);
+            if (extraMoves === 0) {
+                progressMission('perfect_level', 1);
+            }
+            let currentGlobalWorldNum = getGlobalWorldNumber(currentU, currentG, currentW);
+            if (currentGlobalWorldNum >= 3) {
+                progressMission('win_high', 1);
+            }
+            
+            if (currentU === playerData.maxU && currentG === playerData.maxG && currentW === playerData.maxW) {
+                playerData.maxW++;
+                if(playerData.maxW >= WORLDS_PER_GALAXY[currentU]) {
+                    playerData.maxW = 0; playerData.maxG++;
+                    if(playerData.maxG >= GALAXIES_PER_UNIVERSE[currentU]) {
+                        playerData.maxG = 0; playerData.maxU++;
+                    }
+                }
+            }
+            saveData();
+
+            const shipEl = document.querySelector('.ship');
+            if (shipEl) {
+                shipEl.style.transition = 'transform 0.6s cubic-bezier(0.55, 0.085, 0.68, 0.53)';
+                shipEl.style.transform = `translate(800%, ${blocks.find(b=>b.isShip).y * 100}%)`;
+            }
+
+            setTimeout(() => {
+                showWinModal(movesCount, currentLevelMinMoves, coinsEarned, extraMoves === 0);
+            }, 600);
+        }
+
+        function showWinModal(moves, optimal, lunas, isPerfect) {
+            const modal = document.getElementById('custom-modal');
+            const title = document.getElementById('modal-title');
+            const stats = document.getElementById('modal-stats');
+            
+            title.innerText = isPerfect ? '¡PERFECTO!' : '¡MUNDO SUPERADO!';
+            title.style.color = isPerfect ? '#ffd700' : 'var(--accent)';
+            
+            let lunaText = lunas > 0 ? `<b style="color:#00ffff">+${lunas} 🌙 Lunas</b>` : `<b style="color:#ff4444">0 🌙</b> (Demasiados pasos)`;
+            
+            stats.innerHTML = `
+                Movimientos: <b>${moves}</b><br>
+                Ruta Óptima: <b style="color:#aaa">${optimal}</b><br><br>
+                Recompensa: ${lunaText}
+            `;
+            
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('show'), 10);
+        }
+
+        function nextLevelFromModal() {
+            const modal = document.getElementById('custom-modal');
+            modal.classList.remove('show');
+            
+            setTimeout(() => {
+                modal.style.display = 'none';
+                boardWrapper.style.opacity = 0;
+                boardWrapper.style.transform = 'scale(0.9)';
+                
+                setTimeout(() => {
+                    currentW++;
+                    if(currentW >= WORLDS_PER_GALAXY[currentU]) { currentW = 0; currentG++; }
+                    if(currentG >= GALAXIES_PER_UNIVERSE[currentU]) { currentG = 0; currentU++; }
+                    
+                    if(currentU >= UNIVERSES.length) {
+                        nav('menu'); 
+                    } else {
+                        loadWorld(currentU, currentG, currentW);
+                        boardWrapper.style.opacity = 1;
+                        boardWrapper.style.transform = 'scale(1)';
+                    }
+                }, 400); 
+            }, 300); 
+        }
+
+        function navFromModal(screen) {
+            const modal = document.getElementById('custom-modal');
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                nav(screen);
+            }, 300);
+        }
+
+        function useHint() {
+            if(playerData.hints <= 0) {
+                let btn = document.querySelector('.hint-btn');
+                btn.style.transform = 'translateX(-5px)';
+                setTimeout(()=> btn.style.transform = 'translateX(5px)', 50);
+                setTimeout(()=> btn.style.transform = 'translateX(0)', 100);
+                return;
+            }
+            
+            document.querySelectorAll('.hint-highlight').forEach(el => el.classList.remove('hint-highlight'));
+            
+            let solution = solveBFS(blocks, 15000);
+            if(solution && solution.length > 0) {
+                playerData.hints--;
+                saveData();
+                progressMission('use_hint', 1);
+                let nextMove = solution[0];
+                let el = document.getElementById('block-' + nextMove.id);
+                el.classList.add('hint-highlight');
+                
+                let b = blocks.find(x=>x.id===nextMove.id);
+                let dir = nextMove.isHoriz ? (nextMove.target > b.x ? 1 : -1) : (nextMove.target > b.y ? 1 : -1);
+                
+                el.style.transition = "transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+                if(nextMove.isHoriz) el.style.transform = `translate(${b.x * 100 / b.w + (dir*15)}%, ${b.y * 100 / b.h}%)`;
+                else el.style.transform = `translate(${b.x * 100 / b.w}%, ${b.y * 100 / b.h + (dir*15)}%)`;
+                
+                setTimeout(() => {
+                    updateBlockDOM(el, b); 
+                    setTimeout(() => el.style.transition = "transform 0.15s cubic-bezier(0.25, 0.8, 0.25, 1)", 200);
+                }, 300);
+            }
+        }
+
+        function toggleDestructor() {
+            if (playerData.destructors <= 0) {
+                let btn = document.getElementById('btn-destructor');
+                btn.style.transform = 'translateX(-5px)';
+                setTimeout(()=> btn.style.transform = 'translateX(5px)', 50);
+                setTimeout(()=> btn.style.transform = 'translateX(0)', 100);
+                return;
+            }
+            destructionMode = !destructionMode;
+            if(destructionMode) document.getElementById('board-wrapper').classList.add('destruction-mode');
+            else document.getElementById('board-wrapper').classList.remove('destruction-mode');
+        }
+    </script>
+</body>
+</html>
